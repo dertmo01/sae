@@ -1,0 +1,282 @@
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlaceId = game.PlaceId
+
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "PrivateServerBypassGUI"
+ScreenGui.ResetOnSpawn = false
+
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = game.CoreGui
+elseif gethui then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = game.CoreGui
+end
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.5, -145, 0.5, -110)
+MainFrame.Size = UDim2.new(0, 290, 0, 220)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+-- Header Background
+local TitleBar = Instance.new("Frame", MainFrame)
+TitleBar.Size = UDim2.new(1, 0, 0, 36)
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+TitleBar.BorderSizePixel = 0
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 8)
+
+-- Title Text
+local Title = Instance.new("TextLabel", TitleBar)
+Title.Size = UDim2.new(0, 122, 1, 0)
+Title.Position = UDim2.new(0, 8, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.GothamBold
+Title.Text = "Private Server Bypass"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 12
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Credit Text (Right of Title)
+local Credit = Instance.new("TextLabel", TitleBar)
+Credit.Size = UDim2.new(0, 110, 1, 0)
+Credit.Position = UDim2.new(0, 133, 0, 0)
+Credit.BackgroundTransparency = 1
+Credit.Font = Enum.Font.Gotham
+Credit.Text = "Made by Mochii Scripts"
+Credit.TextColor3 = Color3.fromRGB(160, 160, 180)
+Credit.TextSize = 9
+Credit.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Red Box Close Button (X Button)
+local CloseBtn = Instance.new("TextButton", TitleBar)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Position = UDim2.new(1, -26, 0, 7)
+CloseBtn.Size = UDim2.new(0, 20, 0, 20)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 11
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+-- Toggle / Hide Button
+local ToggleBtn = Instance.new("TextButton", TitleBar)
+ToggleBtn.BackgroundTransparency = 1
+ToggleBtn.Position = UDim2.new(1, -50, 0, 7)
+ToggleBtn.Size = UDim2.new(0, 20, 0, 20)
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.Text = "—"
+ToggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+ToggleBtn.TextSize = 13
+
+local isHidden = false
+ToggleBtn.MouseButton1Click:Connect(function()
+    isHidden = not isHidden
+    if isHidden then
+        MainFrame:TweenSize(UDim2.new(0, 290, 0, 36), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.25, true)
+        ToggleBtn.Text = "+"
+    else
+        MainFrame:TweenSize(UDim2.new(0, 290, 0, 220), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.25, true)
+        ToggleBtn.Text = "—"
+    end
+end)
+
+-- Current Player Count Label
+local NowLabel = Instance.new("TextLabel", MainFrame)
+NowLabel.Position = UDim2.new(0, 10, 0, 44)
+NowLabel.Size = UDim2.new(1, -20, 0, 22)
+NowLabel.BackgroundTransparency = 1
+NowLabel.Font = Enum.Font.GothamBold
+NowLabel.TextXAlignment = Enum.TextXAlignment.Left
+NowLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+NowLabel.TextSize = 13
+
+-- Status Display Label
+local StatusLabel = Instance.new("TextLabel", MainFrame)
+StatusLabel.Position = UDim2.new(0, 10, 0, 70)
+StatusLabel.Size = UDim2.new(1, -20, 0, 30)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+StatusLabel.TextSize = 12
+StatusLabel.TextWrapped = true
+
+-- Max Player Threshold Label (Pinalitan na ang text)
+local MaxLabel = Instance.new("TextLabel", MainFrame)
+MaxLabel.Position = UDim2.new(0, 10, 0, 105)
+MaxLabel.Size = UDim2.new(1, -20, 0, 18)
+MaxLabel.BackgroundTransparency = 1
+MaxLabel.Font = Enum.Font.Gotham
+MaxLabel.TextXAlignment = Enum.TextXAlignment.Left
+MaxLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+MaxLabel.TextSize = 10
+MaxLabel.Text = "Press join again if you were sent to the wrong server"
+
+local MaxBox = Instance.new("TextBox", MainFrame)
+MaxBox.Position = UDim2.new(0, 10, 0, 126)
+MaxBox.Size = UDim2.new(1, -20, 0, 28)
+MaxBox.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+MaxBox.BorderSizePixel = 0
+MaxBox.Font = Enum.Font.GothamBold
+MaxBox.Text = "1"
+MaxBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+MaxBox.TextSize = 14
+MaxBox.ClearTextOnFocus = false
+Instance.new("UICorner", MaxBox).CornerRadius = UDim.new(0, 6)
+
+-- Action Buttons
+local JoinBtn = Instance.new("TextButton", MainFrame)
+JoinBtn.Position = UDim2.new(0, 10, 0, 162)
+JoinBtn.Size = UDim2.new(0, 125, 0, 45)
+JoinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180)
+JoinBtn.BorderSizePixel = 0
+JoinBtn.Font = Enum.Font.GothamBold
+JoinBtn.Text = "Join"
+JoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+JoinBtn.TextSize = 13
+Instance.new("UICorner", JoinBtn).CornerRadius = UDim.new(0, 6)
+
+local AutoBtn = Instance.new("TextButton", MainFrame)
+AutoBtn.Position = UDim2.new(0, 145, 0, 162)
+AutoBtn.Size = UDim2.new(0, 135, 0, 45)
+AutoBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 70)
+AutoBtn.BorderSizePixel = 0
+AutoBtn.Font = Enum.Font.GothamBold
+AutoBtn.Text = "Auto Join: OFF"
+AutoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoBtn.TextSize = 13
+Instance.new("UICorner", AutoBtn).CornerRadius = UDim.new(0, 6)
+
+-- ==============================
+-- LOGIC
+-- ==============================
+
+local autoEnabled = false
+local autoThread = nil
+
+-- Realtime player count monitor
+task.spawn(function()
+    while ScreenGui.Parent do
+        local count = #Players:GetPlayers()
+        NowLabel.Text = "Players in server: " .. count
+        task.wait(1)
+    end
+end)
+
+local function getRandomServer()
+    local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local ok, raw = pcall(function() return game:HttpGet(url) end)
+    if not ok or not raw or raw == "" then return nil end
+
+    local ok2, data = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not ok2 or not data or not data.data or #data.data == 0 then return nil end
+
+    local currentId = tostring(game.JobId)
+    local candidates = {}
+    for _, s in ipairs(data.data) do
+        if s.id and tostring(s.id) ~= currentId then
+            table.insert(candidates, tostring(s.id))
+        end
+    end
+
+    if #candidates == 0 then return nil end
+
+    return candidates[math.random(1, #candidates)]
+end
+
+local function joinOnce()
+    local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+    local currentCount = #Players:GetPlayers()
+
+    if currentCount <= threshold then
+        StatusLabel.Text = "✓ Current server has " .. currentCount .. " player(s). No join needed."
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+        return false
+    end
+
+    StatusLabel.Text = "Server has " .. currentCount .. " players. Searching for another server..."
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+    task.wait(0.5)
+
+    local serverId = getRandomServer()
+    if not serverId then
+        StatusLabel.Text = "Failed to fetch server list. Check HTTP Requests in executor."
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        return false
+    end
+
+    StatusLabel.Text = "Teleporting to another server..."
+    StatusLabel.TextColor3 = Color3.fromRGB(120, 180, 255)
+    task.wait(0.5)
+
+    local ok, err = pcall(function()
+        TeleportService:TeleportToPlaceInstance(PlaceId, serverId, LocalPlayer)
+    end)
+
+    if not ok then
+        StatusLabel.Text = "Teleport error: " .. tostring(err):sub(1, 60)
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        return false
+    end
+
+    return true
+end
+
+JoinBtn.MouseButton1Click:Connect(function()
+    JoinBtn.Active = false
+    joinOnce()
+    task.wait(2)
+    JoinBtn.Active = true
+end)
+
+AutoBtn.MouseButton1Click:Connect(function()
+    autoEnabled = not autoEnabled
+
+    if autoEnabled then
+        AutoBtn.Text = "Auto Join: ON"
+        AutoBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+
+        autoThread = task.spawn(function()
+            while autoEnabled and ScreenGui.Parent do
+                local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+                local count = #Players:GetPlayers()
+
+                if count <= threshold then
+                    StatusLabel.Text = "✓ " .. count .. " player(s) here. Waiting..."
+                    StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+                    task.wait(3)
+                else
+                    joinOnce()
+                    task.wait(5)
+                end
+            end
+        end)
+    else
+        AutoBtn.Text = "Auto Join: OFF"
+        AutoBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 70)
+        if autoThread then
+            task.cancel(autoThread)
+            autoThread = nil
+        end
+        StatusLabel.Text = "Auto Join stopped."
+        StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    end
+end)
+
+-- Initialization
+StatusLabel.Text = "Ready. Set target limit and click Join."
+StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
