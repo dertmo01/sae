@@ -1,0 +1,339 @@
+-- =====================================================
+-- KEY SYSTEM UI (Smooth Premium Success Unlock Effects)
+-- =====================================================
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+
+-- Settings
+local CORRECT_KEY = "MochiiScriptsKey"
+
+-- Blur Effect
+local Blur = Instance.new("BlurEffect")
+Blur.Name = "KeySystemBlur"
+Blur.Size = 0
+Blur.Parent = Lighting
+TweenService:Create(Blur, TweenInfo.new(0.5, Enum.EasingStyle.Sine), { Size = 18 }):Play()
+
+-- Parent UI Setup
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KeySystemUI"
+ScreenGui.ResetOnSpawn = false
+
+if gethui then
+    ScreenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = CoreGui
+else
+    ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Main Frame Setup
+local NORMAL_MAIN_POS = UDim2.new(0.5, -190, 0.5, -102)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 380, 0, 205)
+MainFrame.Position = NORMAL_MAIN_POS
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+-- White Outer Border
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(255, 255, 255)
+MainStroke.Thickness = 1.2
+MainStroke.Transparency = 0.2
+MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+MainStroke.Parent = MainFrame
+
+-- Top Section (Header)
+local StatusDot = Instance.new("Frame")
+StatusDot.Name = "StatusDot"
+StatusDot.Size = UDim2.new(0, 8, 0, 8)
+StatusDot.Position = UDim2.new(0, 20, 0, 20)
+StatusDot.BackgroundColor3 = Color3.fromRGB(72, 230, 138)
+StatusDot.BorderSizePixel = 0
+StatusDot.Parent = MainFrame
+
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1, 0)
+DotCorner.Parent = StatusDot
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Size = UDim2.new(1, -50, 0, 18)
+TitleLabel.Position = UDim2.new(0, 35, 0, 15)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Key System"
+TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
+TitleLabel.TextSize = 16
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = MainFrame
+
+local SubtitleLabel = Instance.new("TextLabel")
+SubtitleLabel.Name = "SubtitleLabel"
+SubtitleLabel.Size = UDim2.new(1, -50, 0, 14)
+SubtitleLabel.Position = UDim2.new(0, 35, 0, 34)
+SubtitleLabel.BackgroundTransparency = 1
+SubtitleLabel.Text = "Enter key to unlock."
+SubtitleLabel.TextColor3 = Color3.fromRGB(120, 120, 145)
+SubtitleLabel.TextSize = 11
+SubtitleLabel.Font = Enum.Font.Gotham
+SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubtitleLabel.Parent = MainFrame
+
+-- Input Box Setup
+local NORMAL_INPUT_POS = UDim2.new(0, 20, 0, 58)
+local NORMAL_INPUT_BG = Color3.fromRGB(18, 18, 28)
+local NORMAL_INPUT_STROKE = Color3.fromRGB(40, 40, 60)
+
+local InputBox = Instance.new("TextBox")
+InputBox.Name = "KeyInput"
+InputBox.Size = UDim2.new(1, -40, 0, 38)
+InputBox.Position = NORMAL_INPUT_POS
+InputBox.BackgroundColor3 = NORMAL_INPUT_BG
+InputBox.BorderSizePixel = 0
+InputBox.Text = ""
+InputBox.PlaceholderText = "Enter key..."
+InputBox.PlaceholderColor3 = Color3.fromRGB(80, 80, 105)
+InputBox.TextColor3 = Color3.fromRGB(220, 220, 235)
+InputBox.TextSize = 12
+InputBox.Font = Enum.Font.Gotham
+InputBox.TextXAlignment = Enum.TextXAlignment.Left
+InputBox.ClearTextOnFocus = false
+InputBox.Parent = MainFrame
+
+local InputPadding = Instance.new("UIPadding")
+InputPadding.PaddingLeft = UDim.new(0, 12)
+InputPadding.PaddingRight = UDim.new(0, 12)
+InputPadding.Parent = InputBox
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 8)
+InputCorner.Parent = InputBox
+
+local InputStroke = Instance.new("UIStroke")
+InputStroke.Color = NORMAL_INPUT_STROKE
+InputStroke.Thickness = 1
+InputStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+InputStroke.Parent = InputBox
+
+-- RED ERROR TEXT
+local ErrorLabel = Instance.new("TextLabel")
+ErrorLabel.Name = "ErrorLabel"
+ErrorLabel.Size = UDim2.new(1, -40, 0, 14)
+ErrorLabel.Position = UDim2.new(0, 20, 0, 98)
+ErrorLabel.BackgroundTransparency = 1
+ErrorLabel.Text = ""
+ErrorLabel.TextColor3 = Color3.fromRGB(240, 80, 80)
+ErrorLabel.TextSize = 10
+ErrorLabel.Font = Enum.Font.Gotham
+ErrorLabel.TextXAlignment = Enum.TextXAlignment.Left
+ErrorLabel.Parent = MainFrame
+
+-- Buttons Setup
+local GetKeyBtn = Instance.new("TextButton")
+GetKeyBtn.Name = "GetKeyBtn"
+GetKeyBtn.Size = UDim2.new(0.5, -25, 0, 36)
+GetKeyBtn.Position = UDim2.new(0, 20, 0, 118)
+GetKeyBtn.BackgroundColor3 = Color3.fromRGB(26, 26, 55)
+GetKeyBtn.BorderSizePixel = 0
+GetKeyBtn.Text = "Get Key"
+GetKeyBtn.TextColor3 = Color3.fromRGB(140, 140, 180)
+GetKeyBtn.TextSize = 12
+GetKeyBtn.Font = Enum.Font.GothamMedium
+GetKeyBtn.Parent = MainFrame
+
+local GetKeyCorner = Instance.new("UICorner")
+GetKeyCorner.CornerRadius = UDim.new(0, 10)
+GetKeyCorner.Parent = GetKeyBtn
+
+local ContinueBtn = Instance.new("TextButton")
+ContinueBtn.Name = "ContinueBtn"
+ContinueBtn.Size = UDim2.new(0.5, -25, 0, 36)
+ContinueBtn.Position = UDim2.new(0.5, 5, 0, 118)
+ContinueBtn.BackgroundColor3 = Color3.fromRGB(75, 70, 255)
+ContinueBtn.BorderSizePixel = 0
+ContinueBtn.Text = "Continue"
+ContinueBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+ContinueBtn.TextSize = 12
+ContinueBtn.Font = Enum.Font.GothamMedium
+ContinueBtn.Parent = MainFrame
+
+local ContinueCorner = Instance.new("UICorner")
+ContinueCorner.CornerRadius = UDim.new(0, 10)
+ContinueCorner.Parent = ContinueBtn
+
+-- GREEN STATUS TEXT (Visual Animation Only - No Copy Trigger)
+local SuccessLabel = Instance.new("TextLabel")
+SuccessLabel.Name = "SuccessLabel"
+SuccessLabel.Size = UDim2.new(0.5, -25, 0, 16)
+SuccessLabel.Position = UDim2.new(0.5, 5, 0, 158)
+SuccessLabel.BackgroundTransparency = 1
+SuccessLabel.Text = "Key link copied"
+SuccessLabel.TextTransparency = 1 -- Naka-hide by default
+SuccessLabel.TextColor3 = Color3.fromRGB(80, 225, 125)
+SuccessLabel.TextSize = 12
+SuccessLabel.Font = Enum.Font.GothamMedium
+SuccessLabel.TextXAlignment = Enum.TextXAlignment.Right
+SuccessLabel.Parent = MainFrame
+
+-- Subtext Design Element
+local KeyLinkSubtext = Instance.new("TextLabel")
+KeyLinkSubtext.Name = "KeyLinkSubtext"
+KeyLinkSubtext.Size = UDim2.new(0.5, -25, 0, 16)
+KeyLinkSubtext.Position = UDim2.new(0, 20, 0, 173)
+KeyLinkSubtext.BackgroundTransparency = 1
+KeyLinkSubtext.Text = ""
+KeyLinkSubtext.TextColor3 = Color3.fromRGB(120, 120, 155)
+KeyLinkSubtext.TextSize = 12
+KeyLinkSubtext.Font = Enum.Font.Gotham
+KeyLinkSubtext.TextXAlignment = Enum.TextXAlignment.Left
+KeyLinkSubtext.Parent = MainFrame
+
+-- Shine Wave Overlay (Para sa success animation)
+local ShineOverlay = Instance.new("Frame")
+ShineOverlay.Name = "ShineOverlay"
+ShineOverlay.Size = UDim2.new(0, 60, 1, 0)
+ShineOverlay.Position = UDim2.new(-0.3, 0, 0, 0)
+ShineOverlay.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ShineOverlay.BackgroundTransparency = 0.85
+ShineOverlay.BorderSizePixel = 0
+ShineOverlay.Rotation = 20
+ShineOverlay.Parent = MainFrame
+
+-- ANIMATION FUNCTIONS
+local isAnimating = false
+
+local function triggerErrorAnimation()
+    if isAnimating then return end
+    isAnimating = true
+
+    TweenService:Create(InputBox, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(60, 20, 25) }):Play()
+    TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = Color3.fromRGB(240, 80, 80) }):Play()
+
+    task.spawn(function()
+        local mainOffsets = {7, -7, 5, -5, 3, -3, 0}
+        local tweenInfo = TweenInfo.new(0.04, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+        
+        for _, xOffset in ipairs(mainOffsets) do
+            local tween = TweenService:Create(MainFrame, tweenInfo, { Position = NORMAL_MAIN_POS + UDim2.new(0, xOffset, 0, 0) })
+            tween:Play()
+            tween.Completed:Wait()
+        end
+    end)
+
+    task.spawn(function()
+        local inputOffsets = {-6, 6, -4, 4, -2, 2, 0}
+        local tweenInfo = TweenInfo.new(0.04, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+        
+        for _, yOffset in ipairs(inputOffsets) do
+            local tween = TweenService:Create(InputBox, tweenInfo, { Position = NORMAL_INPUT_POS + UDim2.new(0, 0, 0, yOffset) })
+            tween:Play()
+            tween.Completed:Wait()
+        end
+    end)
+
+    task.delay(0.4, function()
+        TweenService:Create(InputBox, TweenInfo.new(0.3), { BackgroundColor3 = NORMAL_INPUT_BG }):Play()
+        TweenService:Create(InputStroke, TweenInfo.new(0.3), { Color = NORMAL_INPUT_STROKE }):Play()
+        task.wait(0.3)
+        isAnimating = false
+    end)
+end
+
+local function triggerSuccessUnlock()
+    -- 1. Success Button Styling
+    ContinueBtn.Text = "Unlocked!"
+    TweenService:Create(ContinueBtn, TweenInfo.new(0.3), { BackgroundColor3 = Color3.fromRGB(45, 190, 100) }):Play()
+    
+    -- 2. Green Glow Effect sa buong UI Border at Input Box
+    TweenService:Create(MainStroke, TweenInfo.new(0.3), { Color = Color3.fromRGB(72, 230, 138), Transparency = 0 }):Play()
+    TweenService:Create(InputStroke, TweenInfo.new(0.3), { Color = Color3.fromRGB(72, 230, 138) }):Play()
+
+    -- 3. Light Shine Sweep Animation across the Frame
+    ShineOverlay.Position = UDim2.new(-0.3, 0, 0, 0)
+    TweenService:Create(ShineOverlay, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), { Position = UDim2.new(1.3, 0, 0, 0) }):Play()
+
+    -- 4. Unblur Background smoothly
+    TweenService:Create(Blur, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { Size = 0 }):Play()
+
+    task.wait(0.4)
+
+    -- 5. Premium Scale Up + Fade Out Exit Effect
+    local exitInfo = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+    
+    TweenService:Create(MainFrame, exitInfo, {
+        Size = UDim2.new(0, 410, 0, 220),
+        Position = UDim2.new(0.5, -205, 0.5, -110)
+    }):Play()
+
+    -- Fade Out Lahat ng Elements inside
+    for _, desc in ipairs(MainFrame:GetDescendants()) do
+        if desc:IsA("TextLabel") or desc:IsA("TextBox") or desc:IsA("TextButton") then
+            TweenService:Create(desc, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+        end
+        if desc:IsA("Frame") or desc:IsA("TextBox") or desc:IsA("TextButton") then
+            TweenService:Create(desc, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+        end
+        if desc:IsA("UIStroke") then
+            TweenService:Create(desc, TweenInfo.new(0.3), { Transparency = 1 }):Play()
+        end
+    end
+    TweenService:Create(MainFrame, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+
+    task.wait(0.4)
+    Blur:Destroy()
+    ScreenGui:Destroy()
+    
+    print("Key system successfully unlocked!")
+end
+
+-- Key System Events (Fade In Animation Only)
+GetKeyBtn.MouseButton1Click:Connect(function()
+    -- Lalabas lang yung visual text gamit ang transparency animation
+    TweenService:Create(SuccessLabel, TweenInfo.new(0.2), { TextTransparency = 0 }):Play()
+    
+    task.delay(3, function()
+        TweenService:Create(SuccessLabel, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+    end)
+end)
+
+ContinueBtn.MouseButton1Click:Connect(function()
+    if isAnimating then return end
+    local userText = InputBox.Text
+    ErrorLabel.Text = ""
+    
+    if userText == "" then
+        ErrorLabel.Text = "Enter your key."
+        triggerErrorAnimation()
+        
+        task.delay(5, function()
+            if ErrorLabel.Text == "Enter your key." then
+                ErrorLabel.Text = ""
+            end
+        end)
+        
+    elseif userText == CORRECT_KEY then
+        ErrorLabel.Text = ""
+        triggerSuccessUnlock()
+    else
+        ErrorLabel.Text = "Invalid key."
+        triggerErrorAnimation()
+        
+        task.delay(5, function()
+            if ErrorLabel.Text == "Invalid key." then
+                ErrorLabel.Text = ""
+            end
+        end)
+    end
+end)
