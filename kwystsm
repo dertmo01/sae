@@ -1,0 +1,612 @@
+-- =====================================================
+-- KEY SYSTEM UI + LOADING UI (Key first, then Loading)
+-- =====================================================
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- ========================
+-- KEY SYSTEM SETTINGS
+-- ========================
+local CORRECT_KEY = "MochiiScriptsKey"
+local GET_KEY_LINK = "https://discord.gg/mozil"
+
+-- ========================
+-- LOADING UI SETTINGS
+-- ========================
+local GAME_NAME = "Loading System"
+
+-- =====================================================
+-- KEY SYSTEM UI
+-- =====================================================
+local Blur = Instance.new("BlurEffect")
+Blur.Name = "KeySystemBlur"
+Blur.Size = 0
+Blur.Parent = Lighting
+TweenService:Create(Blur, TweenInfo.new(0.5, Enum.EasingStyle.Sine), { Size = 18 }):Play()
+
+local KeyScreenGui = Instance.new("ScreenGui")
+KeyScreenGui.Name = "KeySystemUI"
+KeyScreenGui.ResetOnSpawn = false
+
+if gethui then
+    KeyScreenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(KeyScreenGui)
+    KeyScreenGui.Parent = CoreGui
+else
+    KeyScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+local NORMAL_MAIN_POS = UDim2.new(0.5, -190, 0.5, -102)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 380, 0, 205)
+MainFrame.Position = NORMAL_MAIN_POS
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = KeyScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(255, 255, 255)
+MainStroke.Thickness = 1.2
+MainStroke.Transparency = 0.2
+MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+MainStroke.Parent = MainFrame
+
+-- Header
+local StatusDot = Instance.new("Frame")
+StatusDot.Name = "StatusDot"
+StatusDot.Size = UDim2.new(0, 8, 0, 8)
+StatusDot.Position = UDim2.new(0, 20, 0, 20)
+StatusDot.BackgroundColor3 = Color3.fromRGB(72, 230, 138)
+StatusDot.BorderSizePixel = 0
+StatusDot.Parent = MainFrame
+
+local DotCorner = Instance.new("UICorner")
+DotCorner.CornerRadius = UDim.new(1, 0)
+DotCorner.Parent = StatusDot
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Size = UDim2.new(1, -50, 0, 18)
+TitleLabel.Position = UDim2.new(0, 35, 0, 15)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Key System"
+TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
+TitleLabel.TextSize = 16
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = MainFrame
+
+local SubtitleLabel = Instance.new("TextLabel")
+SubtitleLabel.Name = "SubtitleLabel"
+SubtitleLabel.Size = UDim2.new(1, -50, 0, 14)
+SubtitleLabel.Position = UDim2.new(0, 35, 0, 34)
+SubtitleLabel.BackgroundTransparency = 1
+SubtitleLabel.Text = "Enter key to unlock."
+SubtitleLabel.TextColor3 = Color3.fromRGB(120, 120, 145)
+SubtitleLabel.TextSize = 11
+SubtitleLabel.Font = Enum.Font.Gotham
+SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubtitleLabel.Parent = MainFrame
+
+-- Input
+local NORMAL_INPUT_POS = UDim2.new(0, 20, 0, 58)
+local NORMAL_INPUT_BG = Color3.fromRGB(18, 18, 28)
+local NORMAL_INPUT_STROKE = Color3.fromRGB(40, 40, 60)
+
+local InputBox = Instance.new("TextBox")
+InputBox.Name = "KeyInput"
+InputBox.Size = UDim2.new(1, -40, 0, 38)
+InputBox.Position = NORMAL_INPUT_POS
+InputBox.BackgroundColor3 = NORMAL_INPUT_BG
+InputBox.BorderSizePixel = 0
+InputBox.Text = ""
+InputBox.PlaceholderText = "Enter key..."
+InputBox.PlaceholderColor3 = Color3.fromRGB(80, 80, 105)
+InputBox.TextColor3 = Color3.fromRGB(220, 220, 235)
+InputBox.TextSize = 12
+InputBox.Font = Enum.Font.Gotham
+InputBox.TextXAlignment = Enum.TextXAlignment.Left
+InputBox.ClearTextOnFocus = false
+InputBox.Parent = MainFrame
+
+local InputPadding = Instance.new("UIPadding")
+InputPadding.PaddingLeft = UDim.new(0, 12)
+InputPadding.PaddingRight = UDim.new(0, 12)
+InputPadding.Parent = InputBox
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 8)
+InputCorner.Parent = InputBox
+
+local InputStroke = Instance.new("UIStroke")
+InputStroke.Color = NORMAL_INPUT_STROKE
+InputStroke.Thickness = 1
+InputStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+InputStroke.Parent = InputBox
+
+-- Error
+local ErrorLabel = Instance.new("TextLabel")
+ErrorLabel.Name = "ErrorLabel"
+ErrorLabel.Size = UDim2.new(1, -40, 0, 14)
+ErrorLabel.Position = UDim2.new(0, 20, 0, 98)
+ErrorLabel.BackgroundTransparency = 1
+ErrorLabel.Text = ""
+ErrorLabel.TextColor3 = Color3.fromRGB(240, 80, 80)
+ErrorLabel.TextSize = 10
+ErrorLabel.Font = Enum.Font.Gotham
+ErrorLabel.TextXAlignment = Enum.TextXAlignment.Left
+ErrorLabel.Parent = MainFrame
+
+-- Buttons
+local GetKeyBtn = Instance.new("TextButton")
+GetKeyBtn.Name = "GetKeyBtn"
+GetKeyBtn.Size = UDim2.new(0.5, -25, 0, 36)
+GetKeyBtn.Position = UDim2.new(0, 20, 0, 118)
+GetKeyBtn.BackgroundColor3 = Color3.fromRGB(26, 26, 55)
+GetKeyBtn.BorderSizePixel = 0
+GetKeyBtn.Text = "Get Key"
+GetKeyBtn.TextColor3 = Color3.fromRGB(140, 140, 180)
+GetKeyBtn.TextSize = 12
+GetKeyBtn.Font = Enum.Font.GothamMedium
+GetKeyBtn.Parent = MainFrame
+
+local GetKeyCorner = Instance.new("UICorner")
+GetKeyCorner.CornerRadius = UDim.new(0, 10)
+GetKeyCorner.Parent = GetKeyBtn
+
+local ContinueBtn = Instance.new("TextButton")
+ContinueBtn.Name = "ContinueBtn"
+ContinueBtn.Size = UDim2.new(0.5, -25, 0, 36)
+ContinueBtn.Position = UDim2.new(0.5, 5, 0, 118)
+ContinueBtn.BackgroundColor3 = Color3.fromRGB(75, 70, 255)
+ContinueBtn.BorderSizePixel = 0
+ContinueBtn.Text = "Continue"
+ContinueBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+ContinueBtn.TextSize = 12
+ContinueBtn.Font = Enum.Font.GothamMedium
+ContinueBtn.Parent = MainFrame
+
+local ContinueCorner = Instance.new("UICorner")
+ContinueCorner.CornerRadius = UDim.new(0, 10)
+ContinueCorner.Parent = ContinueBtn
+
+-- Success + Link
+local SuccessLabel = Instance.new("TextLabel")
+SuccessLabel.Name = "SuccessLabel"
+SuccessLabel.Size = UDim2.new(0.5, -25, 0, 16)
+SuccessLabel.Position = UDim2.new(0.5, 5, 0, 158)
+SuccessLabel.BackgroundTransparency = 1
+SuccessLabel.Text = ""
+SuccessLabel.TextColor3 = Color3.fromRGB(80, 225, 125)
+SuccessLabel.TextSize = 12
+SuccessLabel.Font = Enum.Font.GothamMedium
+SuccessLabel.TextXAlignment = Enum.TextXAlignment.Right
+SuccessLabel.Parent = MainFrame
+
+local KeyLinkSubtext = Instance.new("TextLabel")
+KeyLinkSubtext.Name = "KeyLinkSubtext"
+KeyLinkSubtext.Size = UDim2.new(0.5, -25, 0, 16)
+KeyLinkSubtext.Position = UDim2.new(0, 20, 0, 173)
+KeyLinkSubtext.BackgroundTransparency = 1
+KeyLinkSubtext.Text = GET_KEY_LINK
+KeyLinkSubtext.TextColor3 = Color3.fromRGB(120, 120, 155)
+KeyLinkSubtext.TextSize = 12
+KeyLinkSubtext.Font = Enum.Font.Gotham
+KeyLinkSubtext.TextXAlignment = Enum.TextXAlignment.Left
+KeyLinkSubtext.Parent = MainFrame
+
+-- Shine
+local ShineOverlay = Instance.new("Frame")
+ShineOverlay.Name = "ShineOverlay"
+ShineOverlay.Size = UDim2.new(0, 60, 1, 0)
+ShineOverlay.Position = UDim2.new(-0.3, 0, 0, 0)
+ShineOverlay.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ShineOverlay.BackgroundTransparency = 0.85
+ShineOverlay.BorderSizePixel = 0
+ShineOverlay.Rotation = 20
+ShineOverlay.Parent = MainFrame
+
+-- =====================================================
+-- LOADING UI FUNCTION (tatawagin lang after success)
+-- =====================================================
+local function startLoadingUI()
+    local LoaderScreenGui = Instance.new("ScreenGui")
+    LoaderScreenGui.Name = "SecureLoaderUI"
+    LoaderScreenGui.ResetOnSpawn = false
+
+    if gethui then
+        LoaderScreenGui.Parent = gethui()
+    elseif syn and syn.protect_gui then
+        syn.protect_gui(LoaderScreenGui)
+        LoaderScreenGui.Parent = CoreGui
+    else
+        LoaderScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local LoaderMain = Instance.new("Frame")
+    LoaderMain.Name = "MainFrame"
+    LoaderMain.Size = UDim2.new(0, 400, 0, 200)
+    LoaderMain.Position = UDim2.new(0.5, -200, 0.5, -100)
+    LoaderMain.BackgroundColor3 = Color3.fromRGB(10, 12, 20)
+    LoaderMain.BorderSizePixel = 0
+    LoaderMain.ClipsDescendants = true
+    LoaderMain.Parent = LoaderScreenGui
+
+    local LoaderCorner = Instance.new("UICorner")
+    LoaderCorner.CornerRadius = UDim.new(0, 14)
+    LoaderCorner.Parent = LoaderMain
+
+    local LoaderPadding = Instance.new("UIPadding")
+    LoaderPadding.PaddingTop = UDim.new(0, 16)
+    LoaderPadding.PaddingBottom = UDim.new(0, 16)
+    LoaderPadding.PaddingLeft = UDim.new(0, 20)
+    LoaderPadding.PaddingRight = UDim.new(0, 20)
+    LoaderPadding.Parent = LoaderMain
+
+    local LoaderStroke = Instance.new("UIStroke")
+    LoaderStroke.Color = Color3.fromRGB(220, 225, 240)
+    LoaderStroke.Thickness = 1.2
+    LoaderStroke.Transparency = 0.8
+    LoaderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    LoaderStroke.Parent = LoaderMain
+
+    -- Header
+    local HeaderFrame = Instance.new("Frame")
+    HeaderFrame.Name = "HeaderFrame"
+    HeaderFrame.Size = UDim2.new(1, 0, 0, 18)
+    HeaderFrame.BackgroundTransparency = 1
+    HeaderFrame.Parent = LoaderMain
+
+    local HeaderList = Instance.new("UIListLayout")
+    HeaderList.FillDirection = Enum.FillDirection.Horizontal
+    HeaderList.VerticalAlignment = Enum.VerticalAlignment.Center
+    HeaderList.Padding = UDim.new(0, 8)
+    HeaderList.SortOrder = Enum.SortOrder.LayoutOrder
+    HeaderList.Parent = HeaderFrame
+
+    local GreenDot = Instance.new("Frame")
+    GreenDot.Name = "GreenDot"
+    GreenDot.Size = UDim2.new(0, 8, 0, 8)
+    GreenDot.BackgroundColor3 = Color3.fromRGB(60, 200, 120)
+    GreenDot.BorderSizePixel = 0
+    GreenDot.LayoutOrder = 1
+    GreenDot.Parent = HeaderFrame
+
+    local GreenDotCorner = Instance.new("UICorner")
+    GreenDotCorner.CornerRadius = UDim.new(1, 0)
+    GreenDotCorner.Parent = GreenDot
+
+    local GameTitle = Instance.new("TextLabel")
+    GameTitle.Name = "GameTitle"
+    GameTitle.Size = UDim2.new(1, -16, 1, 0)
+    GameTitle.BackgroundTransparency = 1
+    GameTitle.Text = GAME_NAME
+    GameTitle.TextColor3 = Color3.fromRGB(130, 155, 215)
+    GameTitle.TextSize = 13
+    GameTitle.Font = Enum.Font.GothamBold
+    GameTitle.TextXAlignment = Enum.TextXAlignment.Left
+    GameTitle.LayoutOrder = 2
+    GameTitle.Parent = HeaderFrame
+
+    -- Content
+    local ContentContainer = Instance.new("Frame")
+    ContentContainer.Name = "ContentContainer"
+    ContentContainer.Size = UDim2.new(1, 0, 1, -26)
+    ContentContainer.Position = UDim2.new(0, 0, 0, 26)
+    ContentContainer.BackgroundTransparency = 1
+    ContentContainer.Parent = LoaderMain
+
+    local ContentList = Instance.new("UIListLayout")
+    ContentList.FillDirection = Enum.FillDirection.Vertical
+    ContentList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    ContentList.VerticalAlignment = Enum.VerticalAlignment.Center
+    ContentList.Padding = UDim.new(0, 10)
+    ContentList.SortOrder = Enum.SortOrder.LayoutOrder
+    ContentList.Parent = ContentContainer
+
+    local PercentageLabel = Instance.new("TextLabel")
+    PercentageLabel.Name = "PercentageLabel"
+    PercentageLabel.Size = UDim2.new(1, 0, 0, 55)
+    PercentageLabel.BackgroundTransparency = 1
+    PercentageLabel.Text = "0.0%"
+    PercentageLabel.TextColor3 = Color3.fromRGB(180, 205, 255)
+    PercentageLabel.TextScaled = true
+    PercentageLabel.Font = Enum.Font.GothamBold
+    PercentageLabel.LayoutOrder = 1
+    PercentageLabel.Parent = ContentContainer
+
+    local ProgressTrack = Instance.new("Frame")
+    ProgressTrack.Name = "ProgressTrack"
+    ProgressTrack.Size = UDim2.new(1, 0, 0, 6)
+    ProgressTrack.BackgroundColor3 = Color3.fromRGB(22, 32, 54)
+    ProgressTrack.BorderSizePixel = 0
+    ProgressTrack.LayoutOrder = 2
+    ProgressTrack.Parent = ContentContainer
+
+    local TrackCorner = Instance.new("UICorner")
+    TrackCorner.CornerRadius = UDim.new(1, 0)
+    TrackCorner.Parent = ProgressTrack
+
+    local ProgressFill = Instance.new("Frame")
+    ProgressFill.Name = "ProgressFill"
+    ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+    ProgressFill.BackgroundColor3 = Color3.fromRGB(65, 120, 240)
+    ProgressFill.BorderSizePixel = 0
+    ProgressFill.Parent = ProgressTrack
+
+    local FillCorner = Instance.new("UICorner")
+    FillCorner.CornerRadius = UDim.new(1, 0)
+    FillCorner.Parent = ProgressFill
+
+    local WhiteDot = Instance.new("Frame")
+    WhiteDot.Name = "WhiteDot"
+    WhiteDot.Size = UDim2.new(0, 12, 0, 12)
+    WhiteDot.AnchorPoint = Vector2.new(0.5, 0.5)
+    WhiteDot.Position = UDim2.new(1, 0, 0.5, 0)
+    WhiteDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    WhiteDot.BorderSizePixel = 0
+    WhiteDot.Parent = ProgressFill
+
+    local WhiteDotCorner = Instance.new("UICorner")
+    WhiteDotCorner.CornerRadius = UDim.new(1, 0)
+    WhiteDotCorner.Parent = WhiteDot
+
+    local WhiteDotGlow = Instance.new("UIStroke")
+    WhiteDotGlow.Color = Color3.fromRGB(255, 255, 255)
+    WhiteDotGlow.Thickness = 1.5
+    WhiteDotGlow.Transparency = 0.5
+    WhiteDotGlow.Parent = WhiteDot
+
+    -- Text Block (ibaba yung subtext)
+    local TextBlock = Instance.new("Frame")
+    TextBlock.Name = "TextBlock"
+    TextBlock.Size = UDim2.new(1, 0, 0, 38)
+    TextBlock.BackgroundTransparency = 1
+    TextBlock.LayoutOrder = 3
+    TextBlock.Parent = ContentContainer
+
+    local TextList = Instance.new("UIListLayout")
+    TextList.FillDirection = Enum.FillDirection.Vertical
+    TextList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    TextList.VerticalAlignment = Enum.VerticalAlignment.Top
+    TextList.Padding = UDim.new(0, 10)
+    TextList.Parent = TextBlock
+
+    local StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Name = "StatusLabel"
+    StatusLabel.Size = UDim2.new(1, 0, 0, 14)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Text = "Bypassing Script..."
+    StatusLabel.TextColor3 = Color3.fromRGB(85, 115, 175)
+    StatusLabel.TextSize = 11
+    StatusLabel.Font = Enum.Font.Code
+    StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    StatusLabel.Parent = TextBlock
+
+    local SubtextLabel = Instance.new("TextLabel")
+    SubtextLabel.Name = "SubtextLabel"
+    SubtextLabel.Size = UDim2.new(1, 0, 0, 12)
+    SubtextLabel.BackgroundTransparency = 1
+    SubtextLabel.Text = "First load may take longer than usual."
+    SubtextLabel.TextColor3 = Color3.fromRGB(50, 65, 100)
+    SubtextLabel.TextSize = 10
+    SubtextLabel.Font = Enum.Font.Gotham
+    SubtextLabel.TextXAlignment = Enum.TextXAlignment.Center
+    SubtextLabel.Parent = TextBlock
+
+    -- Flicker
+    local isFlickering = true
+    task.spawn(function()
+        while StatusLabel.Parent do
+            if isFlickering then
+                TweenService:Create(StatusLabel, TweenInfo.new(0.4, Enum.EasingStyle.Sine), {TextTransparency = 0.7}):Play()
+                task.wait(0.4)
+                TweenService:Create(StatusLabel, TweenInfo.new(0.4, Enum.EasingStyle.Sine), {TextTransparency = 0}):Play()
+                task.wait(0.4)
+            else
+                StatusLabel.TextTransparency = 0
+                task.wait(0.1)
+            end
+        end
+    end)
+
+    -- Smooth percent
+    local displayedPercent = 0
+    local renderConnection
+
+    renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
+        if ProgressFill and ProgressFill.Parent then
+            local targetPercent = math.clamp(ProgressFill.Size.X.Scale * 100, 0, 100)
+            displayedPercent = displayedPercent + (targetPercent - displayedPercent) * math.clamp(deltaTime * 10, 0, 1)
+            PercentageLabel.Text = string.format("%.1f%%", displayedPercent)
+        else
+            renderConnection:Disconnect()
+        end
+    end)
+
+    -- Loader Sequence
+    local function startLoaderSequence()
+        StatusLabel.Text = "Bypassing Script..."
+        isFlickering = true
+        
+        local tweenTo95 = TweenService:Create(ProgressFill, TweenInfo.new(90, Enum.EasingStyle.Linear), {
+            Size = UDim2.new(0.95, 0, 1, 0)
+        })
+        tweenTo95:Play()
+        tweenTo95.Completed:Wait()
+
+        StatusLabel.Text = "awaiting controller attach..."
+        isFlickering = true
+        task.wait(20)
+
+        isFlickering = false
+        StatusLabel.Text = "finalizing script execution..."
+        StatusLabel.TextTransparency = 0
+        
+        local tweenTo100 = TweenService:Create(ProgressFill, TweenInfo.new(10, Enum.EasingStyle.Linear), {
+            Size = UDim2.new(1, 0, 1, 0)
+        })
+        tweenTo100:Play()
+        tweenTo100.Completed:Wait()
+
+        StatusLabel.Text = "successfully loaded!"
+        StatusLabel.TextColor3 = Color3.fromRGB(70, 180, 120)
+        
+        task.wait(0.6)
+        if renderConnection then renderConnection:Disconnect() end
+
+        for _, desc in ipairs(LoaderMain:GetDescendants()) do
+            if desc:IsA("TextLabel") then TweenService:Create(desc, TweenInfo.new(0.4), {TextTransparency = 1}):Play() end
+            if desc:IsA("Frame") then TweenService:Create(desc, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play() end
+            if desc:IsA("UIStroke") then TweenService:Create(desc, TweenInfo.new(0.4), {Transparency = 1}):Play() end
+        end
+        TweenService:Create(LoaderMain, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
+
+        task.wait(0.4)
+        LoaderScreenGui:Destroy()
+    end
+
+    task.spawn(startLoaderSequence)
+end
+
+-- =====================================================
+-- KEY SYSTEM ANIMATIONS + EVENTS
+-- =====================================================
+local isAnimating = false
+
+local function triggerErrorAnimation()
+    if isAnimating then return end
+    isAnimating = true
+
+    TweenService:Create(InputBox, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(60, 20, 25) }):Play()
+    TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = Color3.fromRGB(240, 80, 80) }):Play()
+
+    task.spawn(function()
+        local mainOffsets = {7, -7, 5, -5, 3, -3, 0}
+        local tweenInfo = TweenInfo.new(0.04, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+        
+        for _, xOffset in ipairs(mainOffsets) do
+            local tween = TweenService:Create(MainFrame, tweenInfo, { Position = NORMAL_MAIN_POS + UDim2.new(0, xOffset, 0, 0) })
+            tween:Play()
+            tween.Completed:Wait()
+        end
+    end)
+
+    task.spawn(function()
+        local inputOffsets = {-6, 6, -4, 4, -2, 2, 0}
+        local tweenInfo = TweenInfo.new(0.04, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+        
+        for _, yOffset in ipairs(inputOffsets) do
+            local tween = TweenService:Create(InputBox, tweenInfo, { Position = NORMAL_INPUT_POS + UDim2.new(0, 0, 0, yOffset) })
+            tween:Play()
+            tween.Completed:Wait()
+        end
+    end)
+
+    task.delay(0.4, function()
+        TweenService:Create(InputBox, TweenInfo.new(0.3), { BackgroundColor3 = NORMAL_INPUT_BG }):Play()
+        TweenService:Create(InputStroke, TweenInfo.new(0.3), { Color = NORMAL_INPUT_STROKE }):Play()
+        task.wait(0.3)
+        isAnimating = false
+    end)
+end
+
+local function triggerSuccessUnlock()
+    ContinueBtn.Text = "Unlocked!"
+    TweenService:Create(ContinueBtn, TweenInfo.new(0.3), { BackgroundColor3 = Color3.fromRGB(45, 190, 100) }):Play()
+    
+    TweenService:Create(MainStroke, TweenInfo.new(0.3), { Color = Color3.fromRGB(72, 230, 138), Transparency = 0 }):Play()
+    TweenService:Create(InputStroke, TweenInfo.new(0.3), { Color = Color3.fromRGB(72, 230, 138) }):Play()
+
+    ShineOverlay.Position = UDim2.new(-0.3, 0, 0, 0)
+    TweenService:Create(ShineOverlay, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), { Position = UDim2.new(1.3, 0, 0, 0) }):Play()
+
+    TweenService:Create(Blur, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { Size = 0 }):Play()
+
+    task.wait(0.4)
+
+    local exitInfo = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+    
+    TweenService:Create(MainFrame, exitInfo, {
+        Size = UDim2.new(0, 410, 0, 220),
+        Position = UDim2.new(0.5, -205, 0.5, -110)
+    }):Play()
+
+    for _, desc in ipairs(MainFrame:GetDescendants()) do
+        if desc:IsA("TextLabel") or desc:IsA("TextBox") or desc:IsA("TextButton") then
+            TweenService:Create(desc, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+        end
+        if desc:IsA("Frame") or desc:IsA("TextBox") or desc:IsA("TextButton") then
+            TweenService:Create(desc, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+        end
+        if desc:IsA("UIStroke") then
+            TweenService:Create(desc, TweenInfo.new(0.3), { Transparency = 1 }):Play()
+        end
+    end
+    TweenService:Create(MainFrame, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+
+    task.wait(0.4)
+    Blur:Destroy()
+    KeyScreenGui:Destroy()
+    
+    print("Key system successfully unlocked!")
+    
+    -- >>> START LOADING UI AFTER KEY SYSTEM DISAPPEARS <<<
+    startLoadingUI()
+end
+
+-- Events
+GetKeyBtn.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard(GET_KEY_LINK)
+    end
+    
+    SuccessLabel.Text = "Key link copied"
+    
+    task.delay(5, function()
+        if SuccessLabel.Text == "Key link copied" then
+            SuccessLabel.Text = ""
+        end
+    end)
+end)
+
+ContinueBtn.MouseButton1Click:Connect(function()
+    if isAnimating then return end
+    local userText = InputBox.Text
+    ErrorLabel.Text = ""
+    
+    if userText == "" then
+        ErrorLabel.Text = "Enter your key."
+        triggerErrorAnimation()
+        
+        task.delay(5, function()
+            if ErrorLabel.Text == "Enter your key." then
+                ErrorLabel.Text = ""
+            end
+        end)
+        
+    elseif userText == CORRECT_KEY then
+        ErrorLabel.Text = ""
+        triggerSuccessUnlock()
+    else
+        ErrorLabel.Text = "Invalid key."
+        triggerErrorAnimation()
+        
+        task.delay(5, function()
+            if ErrorLabel.Text == "Invalid key." then
+                ErrorLabel.Text = ""
+            end
+        end)
+    end
+end)
