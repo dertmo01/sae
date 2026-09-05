@@ -1,0 +1,255 @@
+-- =====================================================
+-- LOADING UI ONLY
+-- =====================================================
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- SETTINGS
+local GAME_NAME = "Loading System"
+
+-- SCREEN GUI SETUP
+local LoaderScreenGui = Instance.new("ScreenGui")
+LoaderScreenGui.Name = "SecureLoaderUI"
+LoaderScreenGui.ResetOnSpawn = false
+
+if gethui then
+    LoaderScreenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(LoaderScreenGui)
+    LoaderScreenGui.Parent = CoreGui
+else
+    LoaderScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- MAIN FRAME
+local LoaderMain = Instance.new("Frame")
+LoaderMain.Name = "MainFrame"
+LoaderMain.Size = UDim2.new(0, 400, 0, 200)
+LoaderMain.Position = UDim2.new(0.5, -200, 0.5, -100)
+LoaderMain.BackgroundColor3 = Color3.fromRGB(10, 12, 20)
+LoaderMain.BorderSizePixel = 0
+LoaderMain.ClipsDescendants = false -- Ginawang false para laging litaw ang WhiteDot
+LoaderMain.Parent = LoaderScreenGui
+
+local LoaderCorner = Instance.new("UICorner")
+LoaderCorner.CornerRadius = UDim.new(0, 14)
+LoaderCorner.Parent = LoaderMain
+
+local LoaderPadding = Instance.new("UIPadding")
+LoaderPadding.PaddingTop = UDim.new(0, 16)
+LoaderPadding.PaddingBottom = UDim.new(0, 16)
+LoaderPadding.PaddingLeft = UDim.new(0, 20)
+LoaderPadding.PaddingRight = UDim.new(0, 20)
+LoaderPadding.Parent = LoaderMain
+
+local LoaderStroke = Instance.new("UIStroke")
+LoaderStroke.Color = Color3.fromRGB(220, 225, 240)
+LoaderStroke.Thickness = 1.2
+LoaderStroke.Transparency = 0.8
+LoaderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+LoaderStroke.Parent = LoaderMain
+
+-- HEADER
+local HeaderFrame = Instance.new("Frame")
+HeaderFrame.Name = "HeaderFrame"
+HeaderFrame.Size = UDim2.new(1, 0, 0, 18)
+HeaderFrame.BackgroundTransparency = 1
+HeaderFrame.Parent = LoaderMain
+
+local HeaderList = Instance.new("UIListLayout")
+HeaderList.FillDirection = Enum.FillDirection.Horizontal
+HeaderList.VerticalAlignment = Enum.VerticalAlignment.Center
+HeaderList.Padding = UDim.new(0, 8)
+HeaderList.SortOrder = Enum.SortOrder.LayoutOrder
+HeaderList.Parent = HeaderFrame
+
+local GreenDot = Instance.new("Frame")
+GreenDot.Name = "GreenDot"
+GreenDot.Size = UDim2.new(0, 8, 0, 8)
+GreenDot.BackgroundColor3 = Color3.fromRGB(60, 200, 120)
+GreenDot.BorderSizePixel = 0
+GreenDot.LayoutOrder = 1
+GreenDot.Parent = HeaderFrame
+
+local GreenDotCorner = Instance.new("UICorner")
+GreenDotCorner.CornerRadius = UDim.new(1, 0)
+GreenDotCorner.Parent = GreenDot
+
+local GameTitle = Instance.new("TextLabel")
+GameTitle.Name = "GameTitle"
+GameTitle.Size = UDim2.new(1, -16, 1, 0)
+GameTitle.BackgroundTransparency = 1
+GameTitle.Text = GAME_NAME
+GameTitle.TextColor3 = Color3.fromRGB(130, 155, 215)
+GameTitle.TextSize = 13
+GameTitle.Font = Enum.Font.GothamBold
+GameTitle.TextXAlignment = Enum.TextXAlignment.Left
+GameTitle.LayoutOrder = 2
+GameTitle.Parent = HeaderFrame
+
+-- CONTENT CONTAINER
+local ContentContainer = Instance.new("Frame")
+ContentContainer.Name = "ContentContainer"
+ContentContainer.Size = UDim2.new(1, 0, 1, -26)
+ContentContainer.Position = UDim2.new(0, 0, 0, 26)
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.Parent = LoaderMain
+
+local ContentList = Instance.new("UIListLayout")
+ContentList.FillDirection = Enum.FillDirection.Vertical
+ContentList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+ContentList.VerticalAlignment = Enum.VerticalAlignment.Center
+ContentList.Padding = UDim.new(0, 10)
+ContentList.SortOrder = Enum.SortOrder.LayoutOrder
+ContentList.Parent = ContentContainer
+
+local PercentageLabel = Instance.new("TextLabel")
+PercentageLabel.Name = "PercentageLabel"
+PercentageLabel.Size = UDim2.new(1, 0, 0, 55)
+PercentageLabel.BackgroundTransparency = 1
+PercentageLabel.Text = "0.0%"
+PercentageLabel.TextColor3 = Color3.fromRGB(180, 205, 255)
+PercentageLabel.TextScaled = true
+PercentageLabel.Font = Enum.Font.GothamBold
+PercentageLabel.LayoutOrder = 1
+PercentageLabel.Parent = ContentContainer
+
+local ProgressTrack = Instance.new("Frame")
+ProgressTrack.Name = "ProgressTrack"
+ProgressTrack.Size = UDim2.new(1, 0, 0, 8)
+ProgressTrack.BackgroundColor3 = Color3.fromRGB(22, 32, 54)
+ProgressTrack.BorderSizePixel = 0
+ProgressTrack.ClipsDescendants = false
+ProgressTrack.LayoutOrder = 2
+ProgressTrack.Parent = ContentContainer
+
+local TrackCorner = Instance.new("UICorner")
+TrackCorner.CornerRadius = UDim.new(1, 0)
+TrackCorner.Parent = ProgressTrack
+
+local ProgressFill = Instance.new("Frame")
+ProgressFill.Name = "ProgressFill"
+ProgressFill.Size = UDim2.new(0, 0, 1, 0)
+ProgressFill.BackgroundColor3 = Color3.fromRGB(65, 120, 240)
+ProgressFill.BorderSizePixel = 0
+ProgressFill.ClipsDescendants = false
+ProgressFill.Parent = ProgressTrack
+
+local FillCorner = Instance.new("UICorner")
+FillCorner.CornerRadius = UDim.new(1, 0)
+FillCorner.Parent = ProgressFill
+
+-- WHITE DOT (Litaw na litaw sa dulo ng progress bar)
+local WhiteDot = Instance.new("Frame")
+WhiteDot.Name = "WhiteDot"
+WhiteDot.Size = UDim2.new(0, 14, 0, 14)
+WhiteDot.AnchorPoint = Vector2.new(0.5, 0.5)
+WhiteDot.Position = UDim2.new(1, 0, 0.5, 0)
+WhiteDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+WhiteDot.BorderSizePixel = 0
+WhiteDot.ZIndex = 5
+WhiteDot.Parent = ProgressFill
+
+local WhiteDotCorner = Instance.new("UICorner")
+WhiteDotCorner.CornerRadius = UDim.new(1, 0)
+WhiteDotCorner.Parent = WhiteDot
+
+local WhiteDotGlow = Instance.new("UIStroke")
+WhiteDotGlow.Color = Color3.fromRGB(255, 255, 255)
+WhiteDotGlow.Thickness = 2
+WhiteDotGlow.Transparency = 0.3
+WhiteDotGlow.Parent = WhiteDot
+
+-- TEXT BLOCK
+local TextBlock = Instance.new("Frame")
+TextBlock.Name = "TextBlock"
+TextBlock.Size = UDim2.new(1, 0, 0, 38)
+TextBlock.BackgroundTransparency = 1
+TextBlock.LayoutOrder = 3
+TextBlock.Parent = ContentContainer
+
+local TextList = Instance.new("UIListLayout")
+TextList.FillDirection = Enum.FillDirection.Vertical
+TextList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TextList.VerticalAlignment = Enum.VerticalAlignment.Top
+TextList.Padding = UDim.new(0, 10)
+TextList.Parent = TextBlock
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(1, 0, 0, 14)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Bypassing Script..."
+StatusLabel.TextColor3 = Color3.fromRGB(85, 115, 175)
+StatusLabel.TextSize = 11
+StatusLabel.Font = Enum.Font.Code
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+StatusLabel.Parent = TextBlock
+
+local SubtextLabel = Instance.new("TextLabel")
+SubtextLabel.Name = "SubtextLabel"
+SubtextLabel.Size = UDim2.new(1, 0, 0, 12)
+SubtextLabel.BackgroundTransparency = 1
+SubtextLabel.Text = "First load may take longer than usual."
+SubtextLabel.TextColor3 = Color3.fromRGB(50, 65, 100)
+SubtextLabel.TextSize = 10
+SubtextLabel.Font = Enum.Font.Gotham
+SubtextLabel.TextXAlignment = Enum.TextXAlignment.Center
+SubtextLabel.Parent = TextBlock
+
+-- FLICKER ANIMATION (Permanenteng naka-stay sa "Bypassing Script...")
+local isFlickering = true
+task.spawn(function()
+    while StatusLabel.Parent do
+        if isFlickering then
+            TweenService:Create(StatusLabel, TweenInfo.new(0.4, Enum.EasingStyle.Sine), {TextTransparency = 0.7}):Play()
+            task.wait(0.4)
+            TweenService:Create(StatusLabel, TweenInfo.new(0.4, Enum.EasingStyle.Sine), {TextTransparency = 0}):Play()
+            task.wait(0.4)
+        else
+            StatusLabel.TextTransparency = 0
+            task.wait(0.1)
+        end
+    end
+end)
+
+-- SMOOTH PERCENTAGE COUNTER
+local displayedPercent = 0
+local renderConnection
+
+renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
+    if ProgressFill and ProgressFill.Parent then
+        local targetPercent = math.clamp(ProgressFill.Size.X.Scale * 100, 0, 100)
+        displayedPercent = displayedPercent + (targetPercent - displayedPercent) * math.clamp(deltaTime * 10, 0, 1)
+        PercentageLabel.Text = string.format("%.1f%%", displayedPercent)
+    else
+        renderConnection:Disconnect()
+    end
+end)
+
+-- 3-MINUTE LOADER SEQUENCE
+local function startLoaderSequence()
+    StatusLabel.Text = "Bypassing Script..."
+    isFlickering = true
+    
+    -- Part 1: Continuous movement mula 0% hanggang 80% sa loob ng 90 seconds (1.5 minutes)
+    local tweenTo80 = TweenService:Create(ProgressFill, TweenInfo.new(90, Enum.EasingStyle.Linear), {
+        Size = UDim2.new(0.80, 0, 1, 0)
+    })
+    tweenTo80:Play()
+    tweenTo80.Completed:Wait()
+
+    -- Part 2: Pabagal nang pabagal mula 80% hanggang 95% sa loob ng 90 seconds (1.5 minutes)
+    local tweenTo95 = TweenService:Create(ProgressFill, TweenInfo.new(90, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0.95, 0, 1, 0)
+    })
+    tweenTo95:Play()
+    tweenTo95.Completed:Wait()
+
+    -- SAKTO 3 MINUTES TOTAL (90s + 90s = 180s):
+    -- Dito na magso-stop at mananatiling naka-stuck sa 95% ang UI habang naka-display pa rin ang "Bypassing Script..."
+end
+
+task.spawn(startLoaderSequence)
