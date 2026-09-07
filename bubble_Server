@@ -1,0 +1,519 @@
+-- ============================================================
+--  SERVER HOP  |  by Mochii Scripts
+--  Bubble orb UI — tap to open/close, drag to move
+--  Panel — draggable by header, resizable by bottom-right corner
+--  Logic — same working code, no changes
+-- ============================================================
+
+local Players        = game:GetService("Players")
+local TeleportService= game:GetService("TeleportService")
+local HttpService    = game:GetService("HttpService")
+local UIS            = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlaceId     = game.PlaceId
+
+-- ============================================================
+-- GUI ROOT
+-- ============================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ServerHopGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = game.CoreGui
+elseif gethui then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = game.CoreGui
+end
+
+-- ============================================================
+-- COLOURS
+-- ============================================================
+local C_BG      = Color3.fromRGB(20,  20,  30)
+local C_HDR     = Color3.fromRGB(35,  35,  55)
+local C_BORDER  = Color3.fromRGB(80,  60, 180)
+local C_ACCENT  = Color3.fromRGB(100, 60, 220)
+local C_GREEN   = Color3.fromRGB(100, 220, 100)
+local C_RED     = Color3.fromRGB(200,  50,  50)
+local C_WHITE   = Color3.fromRGB(255, 255, 255)
+local C_DIM     = Color3.fromRGB(160, 160, 180)
+local C_BLUE    = Color3.fromRGB(60,  60,  180)
+local C_TEAL    = Color3.fromRGB(40,  120,  70)
+
+-- ============================================================
+-- BUBBLE ORB  (tap = toggle panel, drag = move)
+-- ============================================================
+local Bubble = Instance.new("TextButton")
+Bubble.Name            = "Bubble"
+Bubble.Parent          = ScreenGui
+Bubble.Size            = UDim2.new(0, 52, 0, 52)
+Bubble.Position        = UDim2.new(1, -66, 1, -76)
+Bubble.AnchorPoint     = Vector2.new(0, 0)
+Bubble.BackgroundColor3= Color3.fromRGB(30, 15, 80)
+Bubble.BorderSizePixel = 0
+Bubble.Text            = "🌐"
+Bubble.TextSize        = 24
+Bubble.Font            = Enum.Font.GothamBold
+Bubble.TextColor3      = C_WHITE
+Bubble.ZIndex          = 20
+Bubble.Active          = true
+Instance.new("UICorner", Bubble).CornerRadius = UDim.new(1, 0)
+
+local bubbleStroke = Instance.new("UIStroke", Bubble)
+bubbleStroke.Color     = Color3.fromRGB(120, 80, 220)
+bubbleStroke.Thickness = 2
+
+local BubbleGrad = Instance.new("UIGradient", Bubble)
+BubbleGrad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 60, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 100, 255)),
+}
+BubbleGrad.Rotation = 45
+
+-- Notif dot (shows when action is happening)
+local NotifDot = Instance.new("Frame", Bubble)
+NotifDot.Size              = UDim2.new(0, 12, 0, 12)
+NotifDot.Position          = UDim2.new(1, -12, 0, 0)
+NotifDot.BackgroundColor3  = C_RED
+NotifDot.BorderSizePixel   = 0
+NotifDot.ZIndex            = 21
+NotifDot.Visible           = false
+Instance.new("UICorner", NotifDot).CornerRadius = UDim.new(1, 0)
+
+-- Forward-declare Panel
+local Panel
+
+-- Bubble: tap = toggle, drag = move
+do
+    local dragging, dragInput, dragStart, startPos, wasDrag = false, nil, nil, nil, false
+    Bubble.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; wasDrag = false
+            dragStart = i.Position; startPos = Bubble.Position; dragInput = i
+        end
+    end)
+    Bubble.InputChanged:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseMovement
+        or i.UserInputType == Enum.UserInputType.Touch then dragInput = i end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if not dragging or i ~= dragInput then return end
+        local d = i.Position - dragStart
+        if d.Magnitude > 5 then wasDrag = true end
+        local vp = workspace.CurrentCamera.ViewportSize
+        Bubble.Position = UDim2.new(0,
+            math.clamp(startPos.X.Offset + d.X, 0, vp.X - 52), 0,
+            math.clamp(startPos.Y.Offset + d.Y, 0, vp.Y - 52))
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType ~= Enum.UserInputType.MouseButton1
+        and i.UserInputType ~= Enum.UserInputType.Touch then return end
+        dragging = false
+        if not wasDrag and Panel then
+            Panel.Visible = not Panel.Visible
+            if Panel.Visible then
+                NotifDot.Visible = false
+                -- position panel next to bubble
+                local vp = workspace.CurrentCamera.ViewportSize
+                local bx = Bubble.Position.X.Offset
+                local by = Bubble.Position.Y.Offset
+                local pw = Panel.Size.X.Offset
+                local ph = Panel.Size.Y.Offset
+                Panel.Position = UDim2.new(0,
+                    math.clamp(bx - pw - 8, 4, vp.X - pw - 4), 0,
+                    math.clamp(by - ph + 52, 4, vp.Y - ph - 4))
+            end
+        end
+        wasDrag = false
+    end)
+end
+
+-- ============================================================
+-- MAIN PANEL
+-- ============================================================
+local PANEL_W, PANEL_H = 290, 220
+local MIN_W,   MIN_H   = 220, 180
+local MAX_W,   MAX_H   = 480, 420
+
+Panel = Instance.new("Frame")
+Panel.Name               = "Panel"
+Panel.Parent             = ScreenGui
+Panel.Size               = UDim2.new(0, PANEL_W, 0, PANEL_H)
+Panel.Position           = UDim2.new(0.5, -145, 0.5, -110)
+Panel.BackgroundColor3   = C_BG
+Panel.BorderSizePixel    = 0
+Panel.ZIndex             = 15
+Panel.Visible            = false
+Panel.ClipsDescendants   = true
+Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 10)
+
+local panelStroke = Instance.new("UIStroke", Panel)
+panelStroke.Color     = C_BORDER
+panelStroke.Thickness = 1.5
+
+-- ============================================================
+-- HEADER BAR  (drag handle)
+-- ============================================================
+local TitleBar = Instance.new("Frame", Panel)
+TitleBar.Size            = UDim2.new(1, 0, 0, 36)
+TitleBar.BackgroundColor3= C_HDR
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex          = 16
+Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 10)
+
+-- Fix: fill bottom corners of header so it looks flush
+local hdrFix = Instance.new("Frame", TitleBar)
+hdrFix.Size              = UDim2.new(1, 0, 0.5, 0)
+hdrFix.Position          = UDim2.new(0, 0, 0.5, 0)
+hdrFix.BackgroundColor3  = C_HDR
+hdrFix.BorderSizePixel   = 0
+hdrFix.ZIndex            = 16
+
+-- Title text
+local Title = Instance.new("TextLabel", TitleBar)
+Title.Size               = UDim2.new(0, 140, 1, 0)
+Title.Position           = UDim2.new(0, 8, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Font               = Enum.Font.GothamBold
+Title.Text               = "Private Server Bypass"
+Title.TextColor3         = C_WHITE
+Title.TextSize           = 12
+Title.TextXAlignment     = Enum.TextXAlignment.Left
+Title.ZIndex             = 17
+
+-- Credit
+local Credit = Instance.new("TextLabel", TitleBar)
+Credit.Size              = UDim2.new(0, 100, 1, 0)
+Credit.Position          = UDim2.new(0, 148, 0, 0)
+Credit.BackgroundTransparency = 1
+Credit.Font              = Enum.Font.Gotham
+Credit.Text              = "Mochii Scripts"
+Credit.TextColor3        = C_DIM
+Credit.TextSize          = 9
+Credit.TextXAlignment    = Enum.TextXAlignment.Left
+Credit.ZIndex            = 17
+
+-- Close button (X)
+local CloseBtn = Instance.new("TextButton", TitleBar)
+CloseBtn.BackgroundColor3= C_RED
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Position        = UDim2.new(1, -26, 0, 7)
+CloseBtn.Size            = UDim2.new(0, 20, 0, 20)
+CloseBtn.Font            = Enum.Font.GothamBold
+CloseBtn.Text            = "✕"
+CloseBtn.TextColor3      = C_WHITE
+CloseBtn.TextSize        = 11
+CloseBtn.ZIndex          = 18
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+CloseBtn.MouseButton1Click:Connect(function() Panel.Visible = false end)
+
+-- Minimize button (—)
+local MinBtn = Instance.new("TextButton", TitleBar)
+MinBtn.BackgroundColor3  = Color3.fromRGB(50, 50, 80)
+MinBtn.BorderSizePixel   = 0
+MinBtn.Position          = UDim2.new(1, -50, 0, 7)
+MinBtn.Size              = UDim2.new(0, 20, 0, 20)
+MinBtn.Font              = Enum.Font.GothamBold
+MinBtn.Text              = "—"
+MinBtn.TextColor3        = C_DIM
+MinBtn.TextSize          = 11
+MinBtn.ZIndex            = 18
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 4)
+
+-- Minimize: shrink panel to header only
+local isMinimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        Panel:TweenSize(UDim2.new(0, Panel.Size.X.Offset, 0, 36),
+            Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.2, true)
+        MinBtn.Text = "+"
+    else
+        Panel:TweenSize(UDim2.new(0, Panel.Size.X.Offset, 0, PANEL_H),
+            Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.2, true)
+        MinBtn.Text = "—"
+    end
+end)
+
+-- Header drag to move panel
+do
+    local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+    TitleBar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = i.Position
+            startPos = Panel.Position; dragInput = i
+        end
+    end)
+    TitleBar.InputChanged:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseMovement
+        or i.UserInputType == Enum.UserInputType.Touch then dragInput = i end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if not dragging or i ~= dragInput then return end
+        local d   = i.Position - dragStart
+        local vp  = workspace.CurrentCamera.ViewportSize
+        local pw  = Panel.Size.X.Offset
+        local ph  = Panel.Size.Y.Offset
+        Panel.Position = UDim2.new(0,
+            math.clamp(startPos.X.Offset + d.X, 0, vp.X - pw), 0,
+            math.clamp(startPos.Y.Offset + d.Y, 0, vp.Y - ph))
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+end
+
+-- ============================================================
+-- RESIZE HANDLE  (bottom-right corner triangle grip)
+-- ============================================================
+local ResizeHandle = Instance.new("TextButton", Panel)
+ResizeHandle.Size              = UDim2.new(0, 18, 0, 18)
+ResizeHandle.Position          = UDim2.new(1, -18, 1, -18)
+ResizeHandle.BackgroundColor3  = Color3.fromRGB(60, 50, 100)
+ResizeHandle.BorderSizePixel   = 0
+ResizeHandle.Text              = "⤡"
+ResizeHandle.TextSize          = 11
+ResizeHandle.Font              = Enum.Font.GothamBold
+ResizeHandle.TextColor3        = C_DIM
+ResizeHandle.ZIndex            = 20
+ResizeHandle.AutoButtonColor   = false
+Instance.new("UICorner", ResizeHandle).CornerRadius = UDim.new(0, 4)
+
+do
+    local resizing, resizeStart, startSize = false, nil, nil
+    ResizeHandle.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            resizing    = true
+            resizeStart = i.Position
+            startSize   = Vector2.new(Panel.Size.X.Offset, Panel.Size.Y.Offset)
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if not resizing then return end
+        if i.UserInputType ~= Enum.UserInputType.MouseMovement
+        and i.UserInputType ~= Enum.UserInputType.Touch then return end
+        local d  = i.Position - resizeStart
+        local nw = math.clamp(startSize.X + d.X, MIN_W, MAX_W)
+        local nh = math.clamp(startSize.Y + d.Y, MIN_H, MAX_H)
+        Panel.Size = UDim2.new(0, nw, 0, nh)
+        PANEL_W, PANEL_H = nw, nh
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then resizing = false end
+    end)
+end
+
+-- ============================================================
+-- CONTENT  (same layout as working script, inside panel)
+-- ============================================================
+
+-- Player count label
+local NowLabel = Instance.new("TextLabel", Panel)
+NowLabel.Position            = UDim2.new(0, 10, 0, 44)
+NowLabel.Size                = UDim2.new(1, -20, 0, 22)
+NowLabel.BackgroundTransparency = 1
+NowLabel.Font                = Enum.Font.GothamBold
+NowLabel.TextXAlignment      = Enum.TextXAlignment.Left
+NowLabel.TextColor3          = C_GREEN
+NowLabel.TextSize            = 13
+NowLabel.ZIndex              = 16
+
+-- Status label
+local StatusLabel = Instance.new("TextLabel", Panel)
+StatusLabel.Position         = UDim2.new(0, 10, 0, 70)
+StatusLabel.Size             = UDim2.new(1, -20, 0, 30)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Font             = Enum.Font.Gotham
+StatusLabel.TextXAlignment   = Enum.TextXAlignment.Left
+StatusLabel.TextColor3       = C_DIM
+StatusLabel.TextSize         = 12
+StatusLabel.TextWrapped      = true
+StatusLabel.ZIndex           = 16
+
+-- Hint label
+local MaxLabel = Instance.new("TextLabel", Panel)
+MaxLabel.Position            = UDim2.new(0, 10, 0, 105)
+MaxLabel.Size                = UDim2.new(1, -20, 0, 18)
+MaxLabel.BackgroundTransparency = 1
+MaxLabel.Font                = Enum.Font.Gotham
+MaxLabel.TextXAlignment      = Enum.TextXAlignment.Left
+MaxLabel.TextColor3          = C_DIM
+MaxLabel.TextSize            = 10
+MaxLabel.Text                = "Press join again if sent to wrong server"
+MaxLabel.ZIndex              = 16
+
+-- Threshold input box
+local MaxBox = Instance.new("TextBox", Panel)
+MaxBox.Position              = UDim2.new(0, 10, 0, 126)
+MaxBox.Size                  = UDim2.new(1, -20, 0, 28)
+MaxBox.BackgroundColor3      = Color3.fromRGB(35, 35, 55)
+MaxBox.BorderSizePixel       = 0
+MaxBox.Font                  = Enum.Font.GothamBold
+MaxBox.Text                  = "1"
+MaxBox.TextColor3            = C_WHITE
+MaxBox.TextSize              = 14
+MaxBox.ClearTextOnFocus      = false
+MaxBox.ZIndex                = 16
+Instance.new("UICorner", MaxBox).CornerRadius = UDim.new(0, 6)
+local mbp = Instance.new("UIPadding", MaxBox)
+mbp.PaddingLeft = UDim.new(0, 8)
+
+-- Join button
+local JoinBtn = Instance.new("TextButton", Panel)
+JoinBtn.Position             = UDim2.new(0, 10, 0, 162)
+JoinBtn.Size                 = UDim2.new(0, 125, 0, 45)
+JoinBtn.BackgroundColor3     = C_BLUE
+JoinBtn.BorderSizePixel      = 0
+JoinBtn.Font                 = Enum.Font.GothamBold
+JoinBtn.Text                 = "Join"
+JoinBtn.TextColor3           = C_WHITE
+JoinBtn.TextSize             = 13
+JoinBtn.ZIndex               = 16
+Instance.new("UICorner", JoinBtn).CornerRadius = UDim.new(0, 6)
+
+-- Auto join button
+local AutoBtn = Instance.new("TextButton", Panel)
+AutoBtn.Position             = UDim2.new(0, 145, 0, 162)
+AutoBtn.Size                 = UDim2.new(0, 135, 0, 45)
+AutoBtn.BackgroundColor3     = C_TEAL
+AutoBtn.BorderSizePixel      = 0
+AutoBtn.Font                 = Enum.Font.GothamBold
+AutoBtn.Text                 = "Auto Join: OFF"
+AutoBtn.TextColor3           = C_WHITE
+AutoBtn.TextSize             = 13
+AutoBtn.ZIndex               = 16
+Instance.new("UICorner", AutoBtn).CornerRadius = UDim.new(0, 6)
+
+-- ============================================================
+-- LOGIC  (identical to the working version)
+-- ============================================================
+
+local autoEnabled = false
+local autoThread  = nil
+
+-- Live player count
+task.spawn(function()
+    while ScreenGui.Parent do
+        local count = #Players:GetPlayers()
+        NowLabel.Text = "Players in server: " .. count
+        task.wait(1)
+    end
+end)
+
+local function getRandomServer()
+    local url = "https://games.roblox.com/v1/games/" .. PlaceId
+        .. "/servers/Public?sortOrder=Asc&limit=100"
+    local ok, raw = pcall(function() return game:HttpGet(url) end)
+    if not ok or not raw or raw == "" then return nil end
+
+    local ok2, data = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not ok2 or not data or not data.data or #data.data == 0 then return nil end
+
+    local currentId  = tostring(game.JobId)
+    local candidates = {}
+    for _, s in ipairs(data.data) do
+        if s.id and tostring(s.id) ~= currentId then
+            table.insert(candidates, tostring(s.id))
+        end
+    end
+
+    if #candidates == 0 then return nil end
+    return candidates[math.random(1, #candidates)]
+end
+
+local function joinOnce()
+    local threshold    = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+    local currentCount = #Players:GetPlayers()
+
+    if currentCount <= threshold then
+        StatusLabel.Text      = "✓ Server has " .. currentCount .. " player(s). No hop needed."
+        StatusLabel.TextColor3= C_GREEN
+        NotifDot.Visible      = false
+        return false
+    end
+
+    StatusLabel.Text      = "Server has " .. currentCount .. " players. Searching..."
+    StatusLabel.TextColor3= Color3.fromRGB(255, 200, 50)
+    NotifDot.Visible      = true
+    task.wait(0.5)
+
+    local serverId = getRandomServer()
+    if not serverId then
+        StatusLabel.Text      = "Failed to fetch server list. Enable HTTP in executor."
+        StatusLabel.TextColor3= Color3.fromRGB(255, 80, 80)
+        return false
+    end
+
+    StatusLabel.Text      = "Teleporting to another server..."
+    StatusLabel.TextColor3= Color3.fromRGB(120, 180, 255)
+    task.wait(0.5)
+
+    local ok, err = pcall(function()
+        TeleportService:TeleportToPlaceInstance(PlaceId, serverId, LocalPlayer)
+    end)
+
+    if not ok then
+        StatusLabel.Text      = "Teleport error: " .. tostring(err):sub(1, 60)
+        StatusLabel.TextColor3= Color3.fromRGB(255, 80, 80)
+        return false
+    end
+
+    return true
+end
+
+JoinBtn.MouseButton1Click:Connect(function()
+    JoinBtn.Active = false
+    JoinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 130)
+    joinOnce()
+    task.wait(2)
+    JoinBtn.Active = true
+    JoinBtn.BackgroundColor3 = C_BLUE
+end)
+
+AutoBtn.MouseButton1Click:Connect(function()
+    autoEnabled = not autoEnabled
+
+    if autoEnabled then
+        AutoBtn.Text             = "Auto Join: ON"
+        AutoBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        NotifDot.Visible         = true
+
+        autoThread = task.spawn(function()
+            while autoEnabled and ScreenGui.Parent do
+                local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+                local count     = #Players:GetPlayers()
+                if count <= threshold then
+                    StatusLabel.Text      = "✓ " .. count .. " player(s) here. Watching..."
+                    StatusLabel.TextColor3= C_GREEN
+                    task.wait(3)
+                else
+                    joinOnce()
+                    task.wait(5)
+                end
+            end
+        end)
+    else
+        AutoBtn.Text             = "Auto Join: OFF"
+        AutoBtn.BackgroundColor3 = C_TEAL
+        NotifDot.Visible         = false
+        if autoThread then
+            task.cancel(autoThread)
+            autoThread = nil
+        end
+        StatusLabel.Text      = "Auto Join stopped."
+        StatusLabel.TextColor3= C_DIM
+    end
+end)
+
+-- Init
+StatusLabel.Text      = "Ready. Set threshold and click Join."
+StatusLabel.TextColor3= C_DIM
