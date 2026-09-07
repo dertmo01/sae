@@ -1,0 +1,205 @@
+-- ========================================================
+-- STEAL AN EGG | EMERGENCY PRO FIX HUB
+-- ========================================================
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+
+-- Limpiar interfaces anteriores para evitar duplicados
+if CoreGui:FindFirstChild("StealEggEmergencyHub") then
+    CoreGui.StealEggEmergencyHub:Destroy()
+end
+if CoreGui:FindFirstChild("StealEggFloatBtn") then
+    CoreGui.StealEggFloatBtn:Destroy()
+end
+
+-- Variables de estado
+local flyEnabled = false
+local noclipEnabled = false
+local spamFarmEnabled = false
+local flySpeed = 50
+
+-- Interfaz Base
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "StealEggEmergencyHub"
+screenGui.Parent = CoreGui
+
+-- Botón Flotante para abrir/cerrar
+local floatBtn = Instance.new("TextButton")
+floatBtn.Name = "StealEggFloatBtn"
+floatBtn.Size = UDim2.new(0, 45, 0, 45)
+floatBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+floatBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+floatBtn.TextColor3 = Color3.fromRGB(0, 255, 120)
+floatBtn.TextSize = 20
+floatBtn.Font = Enum.Font.GothamBold
+floatBtn.Text = "⚡"
+floatBtn.Active = true
+floatBtn.Draggable = true
+floatBtn.Parent = CoreGui
+Instance.new("UICorner", floatBtn).CornerRadius = UDim.new(0, 10)
+
+-- Ventana Principal
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 380, 0, 280)
+mainFrame.Position = UDim2.new(0.5, -190, 0.5, -140)
+mainFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 20)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(0, 255, 120)
+stroke.Thickness = 1.5
+stroke.Parent = mainFrame
+
+-- Título
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.TextColor3 = Color3.fromRGB(0, 255, 120)
+title.TextSize = 14
+title.Font = Enum.Font.GothamBold
+title.Text = "⚡ STEAL AN EGG | MODO SEGURO"
+title.Parent = mainFrame
+
+-- Botón de cerrar/abrir con el flotante
+local visibleState = true
+floatBtn.MouseButton1Click:Connect(function()
+    visibleState = not visibleState
+    mainFrame.Visible = visibleState
+end)
+
+-- Contenedor de Botones
+local container = Instance.new("ScrollingFrame")
+container.Size = UDim2.new(1, -20, 1, -50)
+container.Position = UDim2.new(0, 10, 0, 40)
+container.BackgroundTransparency = 1
+container.CanvasSize = UDim2.new(0, 0, 0, 250)
+container.ScrollBarThickness = 3
+container.Parent = mainFrame
+
+local layout = Instance.new("UIListLayout")
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Padding = UDim.new(0, 10)
+layout.Parent = container
+
+-- Función para crear botones toggles funcionales
+local function createToggle(name, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    btn.TextSize = 13
+    btn.Font = Enum.Font.GothamMedium
+    btn.Text = name .. ": [ OFF ]"
+    btn.Parent = container
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            btn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
+            btn.Text = name .. ": [ ON ]"
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+            btn.Text = name .. ": [ OFF ]"
+        end
+        callback(state)
+    end)
+end
+
+-- 1. Botón de Spam Agarre / Interacciones
+createToggle("Spam Agarre Automático", function(state)
+    spamFarmEnabled = state
+end)
+
+-- 2. Botón de Noclip Alternativo
+createToggle("Atravesar Paredes (Noclip)", function(state)
+    noclipEnabled = state
+end)
+
+-- 3. Botón de Fly Básico
+createToggle("Volar (Fly Engine)", function(state)
+    flyEnabled = state
+end)
+
+-- 4. Botón de Duplicar Tool Local
+local dupeBtn = Instance.new("TextButton")
+dupeBtn.Size = UDim2.new(1, 0, 0, 40)
+dupeBtn.BackgroundColor3 = Color3.fromRGB(30, 100, 200)
+dupeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+dupeBtn.TextSize = 13
+dupeBtn.Font = Enum.Font.GothamBold
+dupeBtn.Text = "📦 Duplicar Herramienta en Mano"
+dupeBtn.Parent = container
+Instance.new("UICorner", dupeBtn).CornerRadius = UDim.new(0, 8)
+
+dupeBtn.MouseButton1Click:Connect(function()
+    pcall(function()
+        local char = player.Character
+        local bp = player:FindFirstChildOfClass("Backpack")
+        if char and bp then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                tool:Clone().Parent = bp
+            end
+        end
+    end)
+end)
+
+-- ========================================================
+-- MOTOR DE EJECUCIÓN (BUCLE DE HACKS)
+-- ========================================================
+RunService.RenderStepped:Connect(function()
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChild("Humanoid")
+    
+    -- Noclip Real
+    if noclipEnabled then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+    
+    -- Spam Farm de ProximityPrompts cercanos
+    if spamFarmEnabled and hrp then
+        pcall(function()
+            for _, prompt in ipairs(workspace:GetDescendants()) do
+                if prompt:IsA("ProximityPrompt") then
+                    local pPart = prompt.Parent
+                    if pPart and pPart:IsA("BasePart") then
+                        if (hrp.Position - pPart.Position).Magnitude <= 15 then
+                            fireproximityprompt(prompt)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    
+    -- Fly Seguro por Desplazamiento de Posición
+    if flyEnabled and hrp and humanoid then
+        pcall(function()
+            humanoid.PlatformStand = true
+            local cam = workspace.CurrentCamera
+            local moveDir = humanoid.MoveDirection
+            if moveDir.Magnitude > 0 then
+                hrp.CFrame = hrp.CFrame + (cam.CFrame.LookVector * moveDir.Z + cam.CFrame.RightVector * moveDir.X) * (flySpeed * 0.02)
+            end
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        end)
+    else
+        if humanoid and humanoid.PlatformStand then
+            humanoid.PlatformStand = false
+        end
+    end
+end)
