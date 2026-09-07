@@ -1,0 +1,752 @@
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlaceId = game.PlaceId
+
+-- ============================================================
+-- GUI SETUP
+-- ============================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ServerHopBubbleGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = game.CoreGui
+elseif gethui then
+    ScreenGui.Parent = gethui()
+else
+    ScreenGui.Parent = game.CoreGui
+end
+
+-- ============================================================
+-- CHAT BUBBLE BUTTON (always visible, bottom-right)
+-- ============================================================
+local BubbleBtn = Instance.new("TextButton")
+BubbleBtn.Name = "BubbleBtn"
+BubbleBtn.Parent = ScreenGui
+BubbleBtn.Size = UDim2.new(0, 56, 0, 56)
+BubbleBtn.Position = UDim2.new(1, -74, 1, -80)
+BubbleBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 255)
+BubbleBtn.BorderSizePixel = 0
+BubbleBtn.Text = "💬"
+BubbleBtn.TextSize = 26
+BubbleBtn.Font = Enum.Font.GothamBold
+BubbleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+BubbleBtn.ZIndex = 10
+BubbleBtn.Active = true
+Instance.new("UICorner", BubbleBtn).CornerRadius = UDim.new(1, 0)
+
+-- Notification dot (shows when a better server is found)
+local NotifDot = Instance.new("Frame")
+NotifDot.Name = "NotifDot"
+NotifDot.Parent = BubbleBtn
+NotifDot.Size = UDim2.new(0, 14, 0, 14)
+NotifDot.Position = UDim2.new(1, -14, 0, 0)
+NotifDot.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+NotifDot.BorderSizePixel = 0
+NotifDot.ZIndex = 11
+NotifDot.Visible = false
+Instance.new("UICorner", NotifDot).CornerRadius = UDim.new(1, 0)
+
+-- ============================================================
+-- MAIN PANEL (chat bubble pop-up)
+-- ============================================================
+local Panel = Instance.new("Frame")
+Panel.Name = "Panel"
+Panel.Parent = ScreenGui
+Panel.Size = UDim2.new(0, 320, 0, 420)
+Panel.Position = UDim2.new(1, -400, 1, -510)
+Panel.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+Panel.BorderSizePixel = 0
+Panel.ZIndex = 9
+Panel.Visible = false
+Panel.ClipsDescendants = true
+Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 14)
+
+-- Drop shadow effect
+local Shadow = Instance.new("ImageLabel")
+Shadow.Parent = Panel
+Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+Shadow.Position = UDim2.new(0.5, 0, 0.5, 4)
+Shadow.Size = UDim2.new(1, 20, 1, 20)
+Shadow.BackgroundTransparency = 1
+Shadow.Image = "rbxassetid://5554236805"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.7
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+Shadow.ZIndex = 8
+
+-- Panel header
+local Header = Instance.new("Frame")
+Header.Parent = Panel
+Header.Size = UDim2.new(1, 0, 0, 48)
+Header.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+Header.BorderSizePixel = 0
+Header.ZIndex = 10
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
+
+-- Fix bottom corners of header
+local HeaderFix = Instance.new("Frame")
+HeaderFix.Parent = Header
+HeaderFix.Size = UDim2.new(1, 0, 0.5, 0)
+HeaderFix.Position = UDim2.new(0, 0, 0.5, 0)
+HeaderFix.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+HeaderFix.BorderSizePixel = 0
+HeaderFix.ZIndex = 10
+
+local HeaderIcon = Instance.new("TextLabel")
+HeaderIcon.Parent = Header
+HeaderIcon.Size = UDim2.new(0, 36, 1, 0)
+HeaderIcon.Position = UDim2.new(0, 10, 0, 0)
+HeaderIcon.BackgroundTransparency = 1
+HeaderIcon.Text = "🌐"
+HeaderIcon.TextSize = 20
+HeaderIcon.Font = Enum.Font.GothamBold
+HeaderIcon.ZIndex = 11
+
+local HeaderTitle = Instance.new("TextLabel")
+HeaderTitle.Parent = Header
+HeaderTitle.Size = UDim2.new(0, 160, 1, 0)
+HeaderTitle.Position = UDim2.new(0, 48, 0, 0)
+HeaderTitle.BackgroundTransparency = 1
+HeaderTitle.Font = Enum.Font.GothamBold
+HeaderTitle.Text = "Server Hop"
+HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+HeaderTitle.TextSize = 14
+HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
+HeaderTitle.ZIndex = 11
+
+local HeaderSub = Instance.new("TextLabel")
+HeaderSub.Parent = Header
+HeaderSub.Size = UDim2.new(0, 160, 0, 14)
+HeaderSub.Position = UDim2.new(0, 48, 0, 26)
+HeaderSub.BackgroundTransparency = 1
+HeaderSub.Font = Enum.Font.Gotham
+HeaderSub.Text = "by Mochii Scripts"
+HeaderSub.TextColor3 = Color3.fromRGB(120, 120, 160)
+HeaderSub.TextSize = 9
+HeaderSub.TextXAlignment = Enum.TextXAlignment.Left
+HeaderSub.ZIndex = 11
+
+-- Close button in header
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Parent = Header
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -36, 0.5, -14)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Text = "✕"
+CloseBtn.TextSize = 12
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.ZIndex = 12
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
+CloseBtn.MouseButton1Click:Connect(function()
+    Panel.Visible = false
+end)
+
+-- ============================================================
+-- CONTENT SCROLL (inside panel, below header)
+-- ============================================================
+local ContentFrame = Instance.new("ScrollingFrame")
+ContentFrame.Parent = Panel
+ContentFrame.Position = UDim2.new(0, 0, 0, 48)
+ContentFrame.Size = UDim2.new(1, 0, 1, -48)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.BorderSizePixel = 0
+ContentFrame.ScrollBarThickness = 4
+ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 120)
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ContentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ContentFrame.ZIndex = 10
+
+local ContentLayout = Instance.new("UIListLayout")
+ContentLayout.Parent = ContentFrame
+ContentLayout.Padding = UDim.new(0, 8)
+ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ContentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local ContentPad = Instance.new("UIPadding")
+ContentPad.Parent = ContentFrame
+ContentPad.PaddingTop = UDim.new(0, 10)
+ContentPad.PaddingLeft = UDim.new(0, 10)
+ContentPad.PaddingRight = UDim.new(0, 10)
+ContentPad.PaddingBottom = UDim.new(0, 10)
+
+-- Helper: create a section card
+local function MakeCard(icon, title, color)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.new(1, 0, 0, 0)
+    Card.AutomaticSize = Enum.AutomaticSize.Y
+    Card.BackgroundColor3 = Color3.fromRGB(26, 26, 42)
+    Card.BorderSizePixel = 0
+    Card.ZIndex = 11
+    Instance.new("UICorner", Card).CornerRadius = UDim.new(0, 10)
+
+    local Accent = Instance.new("Frame")
+    Accent.Parent = Card
+    Accent.Size = UDim2.new(0, 3, 1, -16)
+    Accent.Position = UDim2.new(0, 8, 0, 8)
+    Accent.BackgroundColor3 = color or Color3.fromRGB(80, 120, 255)
+    Accent.BorderSizePixel = 0
+    Instance.new("UICorner", Accent).CornerRadius = UDim.new(1, 0)
+
+    local CardTitle = Instance.new("TextLabel")
+    CardTitle.Parent = Card
+    CardTitle.Size = UDim2.new(1, -28, 0, 20)
+    CardTitle.Position = UDim2.new(0, 20, 0, 8)
+    CardTitle.BackgroundTransparency = 1
+    CardTitle.Font = Enum.Font.GothamBold
+    CardTitle.Text = (icon or "") .. "  " .. (title or "")
+    CardTitle.TextColor3 = color or Color3.fromRGB(180, 200, 255)
+    CardTitle.TextSize = 11
+    CardTitle.TextXAlignment = Enum.TextXAlignment.Left
+    CardTitle.ZIndex = 12
+
+    local CardBody = Instance.new("Frame")
+    CardBody.Name = "Body"
+    CardBody.Parent = Card
+    CardBody.Size = UDim2.new(1, -20, 0, 0)
+    CardBody.Position = UDim2.new(0, 10, 0, 30)
+    CardBody.AutomaticSize = Enum.AutomaticSize.Y
+    CardBody.BackgroundTransparency = 1
+    CardBody.ZIndex = 12
+
+    local BodyLayout = Instance.new("UIListLayout")
+    BodyLayout.Parent = CardBody
+    BodyLayout.Padding = UDim.new(0, 4)
+    BodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local BodyPad = Instance.new("UIPadding")
+    BodyPad.Parent = CardBody
+    BodyPad.PaddingBottom = UDim.new(0, 10)
+
+    return Card, CardBody
+end
+
+-- Helper: add a text row to a card body
+local function AddRow(parent, text, color, order)
+    local lbl = Instance.new("TextLabel")
+    lbl.Parent = parent
+    lbl.Size = UDim2.new(1, 0, 0, 18)
+    lbl.BackgroundTransparency = 1
+    lbl.Font = Enum.Font.Gotham
+    lbl.Text = text
+    lbl.TextColor3 = color or Color3.fromRGB(200, 200, 200)
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextWrapped = true
+    lbl.ZIndex = 12
+    lbl.LayoutOrder = order or 0
+    return lbl
+end
+
+-- ============================================================
+-- CARD 1 — THIS SERVER
+-- ============================================================
+local Card1, Body1 = MakeCard("👥", "THIS SERVER", Color3.fromRGB(100, 220, 130))
+Card1.Parent = ContentFrame
+Card1.LayoutOrder = 1
+
+local ThisServerPlayers = AddRow(Body1, "Players: ...", Color3.fromRGB(100, 220, 130), 1)
+local ThisServerEgg     = AddRow(Body1, "🥚 Egg: scanning...", Color3.fromRGB(255, 210, 80), 2)
+local ThisServerStatus  = AddRow(Body1, "Status: —", Color3.fromRGB(180, 180, 180), 3)
+
+-- ============================================================
+-- CARD 2 — MAX PLAYER THRESHOLD
+-- ============================================================
+local Card2, Body2 = MakeCard("⚙️", "TARGET THRESHOLD", Color3.fromRGB(120, 160, 255))
+Card2.Parent = ContentFrame
+Card2.LayoutOrder = 2
+
+local ThreshHint = AddRow(Body2, "Hop when server has MORE than:", Color3.fromRGB(140, 140, 180), 1)
+
+local MaxBox = Instance.new("TextBox")
+MaxBox.Parent = Body2
+MaxBox.Size = UDim2.new(1, 0, 0, 32)
+MaxBox.BackgroundColor3 = Color3.fromRGB(35, 35, 60)
+MaxBox.BorderSizePixel = 0
+MaxBox.Font = Enum.Font.GothamBold
+MaxBox.Text = "1"
+MaxBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+MaxBox.TextSize = 15
+MaxBox.ClearTextOnFocus = false
+MaxBox.ZIndex = 13
+MaxBox.LayoutOrder = 2
+Instance.new("UICorner", MaxBox).CornerRadius = UDim.new(0, 6)
+local MaxBoxPad = Instance.new("UIPadding")
+MaxBoxPad.Parent = MaxBox
+MaxBoxPad.PaddingLeft = UDim.new(0, 10)
+
+-- ============================================================
+-- CARD 3 — AVAILABLE SERVERS
+-- ============================================================
+local Card3, Body3 = MakeCard("🖥️", "AVAILABLE SERVERS", Color3.fromRGB(80, 180, 255))
+Card3.Parent = ContentFrame
+Card3.LayoutOrder = 3
+
+local ServerListLabel = AddRow(Body3, "Click Refresh to load servers...", Color3.fromRGB(140, 140, 180), 1)
+
+local RefreshBtn = Instance.new("TextButton")
+RefreshBtn.Parent = Body3
+RefreshBtn.Size = UDim2.new(1, 0, 0, 28)
+RefreshBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 160)
+RefreshBtn.BorderSizePixel = 0
+RefreshBtn.Font = Enum.Font.GothamBold
+RefreshBtn.Text = "🔄  Refresh Servers"
+RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RefreshBtn.TextSize = 11
+RefreshBtn.ZIndex = 13
+RefreshBtn.LayoutOrder = 2
+Instance.new("UICorner", RefreshBtn).CornerRadius = UDim.new(0, 6)
+
+-- ============================================================
+-- CARD 4 — STATUS
+-- ============================================================
+local Card4, Body4 = MakeCard("📡", "STATUS", Color3.fromRGB(255, 180, 80))
+Card4.Parent = ContentFrame
+Card4.LayoutOrder = 4
+
+local StatusLabel = AddRow(Body4, "Ready. Set threshold and hop.", Color3.fromRGB(180, 180, 180), 1)
+
+-- ============================================================
+-- CARD 5 — ACTIONS
+-- ============================================================
+local Card5, Body5 = MakeCard("🚀", "ACTIONS", Color3.fromRGB(200, 100, 255))
+Card5.Parent = ContentFrame
+Card5.LayoutOrder = 5
+
+local BtnRow = Instance.new("Frame")
+BtnRow.Parent = Body5
+BtnRow.Size = UDim2.new(1, 0, 0, 36)
+BtnRow.BackgroundTransparency = 1
+BtnRow.LayoutOrder = 1
+BtnRow.ZIndex = 12
+
+local BtnLayout = Instance.new("UIListLayout")
+BtnLayout.Parent = BtnRow
+BtnLayout.FillDirection = Enum.FillDirection.Horizontal
+BtnLayout.Padding = UDim.new(0, 8)
+
+local JoinBtn = Instance.new("TextButton")
+JoinBtn.Parent = BtnRow
+JoinBtn.Size = UDim2.new(0.5, -4, 1, 0)
+JoinBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 220)
+JoinBtn.BorderSizePixel = 0
+JoinBtn.Font = Enum.Font.GothamBold
+JoinBtn.Text = "⚡ Hop Now"
+JoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+JoinBtn.TextSize = 12
+JoinBtn.ZIndex = 13
+Instance.new("UICorner", JoinBtn).CornerRadius = UDim.new(0, 6)
+
+local AutoBtn = Instance.new("TextButton")
+AutoBtn.Parent = BtnRow
+AutoBtn.Size = UDim2.new(0.5, -4, 1, 0)
+AutoBtn.BackgroundColor3 = Color3.fromRGB(40, 130, 80)
+AutoBtn.BorderSizePixel = 0
+AutoBtn.Font = Enum.Font.GothamBold
+AutoBtn.Text = "🔁 Auto: OFF"
+AutoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoBtn.TextSize = 12
+AutoBtn.ZIndex = 13
+Instance.new("UICorner", AutoBtn).CornerRadius = UDim.new(0, 6)
+
+-- ============================================================
+-- BUBBLE TOGGLE LOGIC
+-- ============================================================
+BubbleBtn.MouseButton1Click:Connect(function()
+    Panel.Visible = not Panel.Visible
+    if Panel.Visible then
+        NotifDot.Visible = false
+    end
+end)
+
+-- ============================================================
+-- EGG SCANNER — uses real Steal An Egg game APIs
+-- Source reference: open source community script (poccwo.lua)
+-- Game path: ReplicatedStorage.Library.Client.EggCmds
+--            ReplicatedStorage.Library.Client.Save
+--            ReplicatedStorage.Directory.Assets
+-- ============================================================
+
+-- Rarity order for display (Divine = best)
+local RARITY_ORDER = {
+    Divine = 10, Eternal = 9, Secret = 8, Cosmic = 7,
+    Mythic = 6, Legendary = 5, Epic = 4, Rare = 3,
+    Uncommon = 2, Common = 1
+}
+
+local RARITY_COLORS = {
+    Divine    = Color3.fromRGB(255, 100, 255),
+    Eternal   = Color3.fromRGB(255, 200, 80),
+    Secret    = Color3.fromRGB(180, 0, 255),
+    Cosmic    = Color3.fromRGB(80, 200, 255),
+    Mythic    = Color3.fromRGB(255, 80, 80),
+    Legendary = Color3.fromRGB(255, 170, 0),
+    Epic      = Color3.fromRGB(160, 80, 255),
+    Rare      = Color3.fromRGB(80, 120, 255),
+    Uncommon  = Color3.fromRGB(100, 220, 100),
+    Common    = Color3.fromRGB(180, 180, 180),
+}
+
+local RS = game:GetService("ReplicatedStorage")
+
+-- Try to load real game modules (only works inside the actual game)
+local EggCmds, Save, AssetsDir
+pcall(function()
+    EggCmds  = require(RS.Library.Client.EggCmds)
+    Save     = require(RS.Library.Client.Save)
+    AssetsDir = require(RS.Directory.Assets)
+end)
+
+-- Get live area eggs snapshot via real EggCmds remote
+local function getAreaEggs()
+    if not EggCmds then return nil end
+    local ok, snap = pcall(function()
+        return EggCmds.GetAreaEggSnapshot()
+    end)
+    if not ok or type(snap) ~= "table" then return nil end
+    return snap.Records or snap
+end
+
+-- Get player's own egg inventory via Save module
+local function getInventoryEggs()
+    if not Save then return nil end
+    local ok, data = pcall(Save.Get)
+    if not ok or type(data) ~= "table" then return nil end
+    return data.EggInventory, data
+end
+
+-- Get rarity name for an egg asset category
+local function getRarityName(category)
+    if not AssetsDir then return "?" end
+    local cfg = AssetsDir.Directory and AssetsDir.Directory[category]
+    if type(cfg) ~= "table" or type(cfg.Rarity) ~= "table" then return "?" end
+    return tostring(cfg.Rarity._id or "?")
+end
+
+-- Format mutation tag (Rainbow/Gold/Silver or custom)
+local function getMutationTag(rec)
+    local blob = tostring(rec.BaseMutation or "")
+    if type(rec.Mutations) == "table" then
+        for _, m in pairs(rec.Mutations) do
+            blob = blob .. "," .. tostring(m)
+        end
+    end
+    local s = blob:lower()
+    if s:find("rainbow") then return "🌈" end
+    if s:find("gold")    then return "🌕" end
+    if s:find("silver")  then return "🩶" end
+    if blob ~= ""        then return "✨" end
+    return ""
+end
+
+-- Biome areas the game has (from open source community data)
+local AREA_RANK = {
+    Forest=1, Lake=2, Desert=3, Jungle=4, Snow=5,
+    Volcano=6, ["Abyss Ocean"]=7, Prehistoric=8,
+    Cosmic=9, ["Cherry Blossom"]=10, Sakura=10
+}
+
+-- Main scanner: tries real APIs first, falls back to workspace scan
+local function scanEggs()
+    local results = {}
+
+    -- ── Method 1: Real API snapshot (works in-game with executor)
+    local records = getAreaEggs()
+    if records then
+        local seen = {}
+        for _, rec in pairs(records) do
+            if type(rec) == "table" and rec.State == "Slot" then
+                local cat     = tostring(rec.AssetCategory or rec.Name or "Egg")
+                local area    = tostring(rec.AreaId or "?")
+                local rarity  = getRarityName(cat)
+                local mutTag  = getMutationTag(rec)
+                local key     = cat .. rarity .. area
+                if not seen[key] then
+                    seen[key] = true
+                    table.insert(results, {
+                        name    = cat,
+                        rarity  = rarity,
+                        area    = area,
+                        mut     = mutTag,
+                        score   = (RARITY_ORDER[rarity] or 0) * 10 + (AREA_RANK[area] or 0),
+                        source  = "live"
+                    })
+                end
+            end
+        end
+    end
+
+    -- ── Method 2: Player inventory eggs
+    local inv, savedata = getInventoryEggs()
+    if inv then
+        for uid, rec in pairs(inv) do
+            if type(rec) == "table" then
+                local cat    = tostring(rec.AssetCategory or rec.Category or rec.Name or uid)
+                local rarity = getRarityName(cat)
+                local mutTag = getMutationTag(rec)
+                table.insert(results, {
+                    name   = cat,
+                    rarity = rarity,
+                    area   = "inventory",
+                    mut    = mutTag,
+                    score  = (RARITY_ORDER[rarity] or 0) * 10 + 100,
+                    source = "inv"
+                })
+            end
+        end
+    end
+
+    -- ── Method 3: Workspace fallback (generic scan if APIs not available)
+    if #results == 0 then
+        local ws = game:GetService("Workspace")
+        local objects = ws:FindFirstChild("__OBJECTS")
+        local root = objects and objects:FindFirstChild("Areas") or ws
+        local function scan(parent, depth)
+            if depth > 5 then return end
+            for _, obj in ipairs(parent:GetChildren()) do
+                local n = obj.Name:lower()
+                if n:find("egg") then
+                    local area = obj.Parent and obj.Parent.Name or "?"
+                    table.insert(results, {
+                        name   = obj.Name,
+                        rarity = "?",
+                        area   = area,
+                        mut    = "",
+                        score  = 0,
+                        source = "ws"
+                    })
+                end
+                scan(obj, depth + 1)
+            end
+        end
+        pcall(scan, root, 0)
+    end
+
+    -- Sort best first
+    table.sort(results, function(a, b) return a.score > b.score end)
+    return results, savedata
+end
+
+-- ============================================================
+-- LOGIC
+-- ============================================================
+local autoEnabled = false
+local autoThread = nil
+
+-- Live player count + egg scan
+task.spawn(function()
+    while ScreenGui.Parent do
+        local count = #Players:GetPlayers()
+        ThisServerPlayers.Text = "👥 Players here: " .. count
+
+        -- Egg scan using real game APIs
+        local eggs, savedata = scanEggs()
+
+        if #eggs > 0 then
+            -- Show the best egg on the card
+            local best = eggs[1]
+            local rarColor = RARITY_COLORS[best.rarity] or Color3.fromRGB(255, 210, 80)
+            local tag = best.mut ~= "" and (best.mut .. " ") or ""
+            ThisServerEgg.Text = "🥚 Best: " .. tag .. best.name .. "  [" .. best.rarity .. "]  📍" .. best.area
+            ThisServerEgg.TextColor3 = rarColor
+
+            -- Show player money + speed if available from Save
+            if savedata then
+                local money = savedata.Money or 0
+                local spd   = savedata.SpeedPower or "?"
+                ThisServerPlayers.Text = "👥 Players: " .. count ..
+                    "   💰 $" .. string.format("%.0f", tonumber(money) or 0) ..
+                    "   ⚡" .. tostring(spd)
+            end
+        else
+            ThisServerEgg.Text = "🥚 Eggs: none in this server"
+            ThisServerEgg.TextColor3 = Color3.fromRGB(140, 140, 160)
+        end
+
+        task.wait(2)
+    end
+end)
+
+-- Server list fetch
+local function fetchServers()
+    local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local ok, raw = pcall(function() return game:HttpGet(url) end)
+    if not ok or not raw or raw == "" then return nil end
+    local ok2, data = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not ok2 or not data or not data.data then return nil end
+    return data.data
+end
+
+local function refreshServerList()
+    ServerListLabel.Text = "⏳ Loading servers..."
+    ServerListLabel.TextColor3 = Color3.fromRGB(180, 180, 100)
+
+    -- Clear old rows except the label and button
+    for _, child in ipairs(Body3:GetChildren()) do
+        if child:IsA("TextLabel") and child ~= ServerListLabel then
+            child:Destroy()
+        end
+    end
+
+    task.spawn(function()
+        local servers = fetchServers()
+        if not servers or #servers == 0 then
+            ServerListLabel.Text = "❌ Failed to fetch. Enable HTTP requests."
+            ServerListLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+            return
+        end
+
+        local currentId = tostring(game.JobId)
+        local count = 0
+        local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+
+        ServerListLabel.Text = "🖥️ " .. #servers .. " server(s) found:"
+        ServerListLabel.TextColor3 = Color3.fromRGB(80, 180, 255)
+
+        for i, s in ipairs(servers) do
+            if count >= 8 then break end
+            local isCurrent = tostring(s.id) == currentId
+            local playing   = tonumber(s.playing) or 0
+            local maxP      = s.maxPlayers or "?"
+            local tag       = isCurrent and " ◀ YOU" or ""
+            -- Mark servers that are below threshold (good to hop to)
+            local hopTag    = (not isCurrent and playing <= threshold) and " ✓hop" or ""
+            local rowColor  = isCurrent and Color3.fromRGB(100, 220, 130)
+                           or (playing <= threshold and Color3.fromRGB(120, 220, 255))
+                           or Color3.fromRGB(180, 180, 200)
+            local row = AddRow(
+                Body3,
+                string.format("  [%d]  %d/%s players%s%s", i, playing, tostring(maxP), tag, hopTag),
+                rowColor,
+                10 + i
+            )
+            count = count + 1
+        end
+    end)
+end
+
+RefreshBtn.MouseButton1Click:Connect(refreshServerList)
+
+-- Hop logic
+local function getRandomServer()
+    local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local ok, raw = pcall(function() return game:HttpGet(url) end)
+    if not ok or not raw or raw == "" then return nil end
+    local ok2, data = pcall(HttpService.JSONDecode, HttpService, raw)
+    if not ok2 or not data or not data.data or #data.data == 0 then return nil end
+    local currentId = tostring(game.JobId)
+    local candidates = {}
+    for _, s in ipairs(data.data) do
+        if s.id and tostring(s.id) ~= currentId then
+            table.insert(candidates, tostring(s.id))
+        end
+    end
+    if #candidates == 0 then return nil end
+    return candidates[math.random(1, #candidates)]
+end
+
+local function joinOnce()
+    local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+    local currentCount = #Players:GetPlayers()
+
+    if currentCount <= threshold then
+        ThisServerStatus.Text = "Status: ✓ Good server (" .. currentCount .. " players)"
+        ThisServerStatus.TextColor3 = Color3.fromRGB(100, 220, 100)
+        StatusLabel.Text = "✓ Server is fine. No hop needed."
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+        return false
+    end
+
+    StatusLabel.Text = "🔍 Searching for another server..."
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+    task.wait(0.5)
+
+    local serverId = getRandomServer()
+    if not serverId then
+        StatusLabel.Text = "❌ Failed to get server list."
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        NotifDot.Visible = true
+        return false
+    end
+
+    StatusLabel.Text = "🚀 Teleporting..."
+    StatusLabel.TextColor3 = Color3.fromRGB(120, 180, 255)
+    task.wait(0.5)
+
+    local ok, err = pcall(function()
+        TeleportService:TeleportToPlaceInstance(PlaceId, serverId, LocalPlayer)
+    end)
+
+    if not ok then
+        StatusLabel.Text = "❌ " .. tostring(err):sub(1, 55)
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        NotifDot.Visible = true
+        return false
+    end
+
+    return true
+end
+
+-- Hop Now button
+JoinBtn.MouseButton1Click:Connect(function()
+    JoinBtn.Active = false
+    JoinBtn.BackgroundColor3 = Color3.fromRGB(40, 60, 140)
+    joinOnce()
+    task.wait(2)
+    JoinBtn.Active = true
+    JoinBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 220)
+end)
+
+-- Auto button
+AutoBtn.MouseButton1Click:Connect(function()
+    autoEnabled = not autoEnabled
+
+    if autoEnabled then
+        AutoBtn.Text = "🔁 Auto: ON"
+        AutoBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+
+        autoThread = task.spawn(function()
+            while autoEnabled and ScreenGui.Parent do
+                local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+                local count = #Players:GetPlayers()
+
+                if count <= threshold then
+                    StatusLabel.Text = "✓ " .. count .. " player(s). Waiting..."
+                    StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+                    ThisServerStatus.Text = "Status: ✓ Good server"
+                    ThisServerStatus.TextColor3 = Color3.fromRGB(100, 220, 100)
+                    task.wait(3)
+                else
+                    ThisServerStatus.Text = "Status: ⚠ Too many players"
+                    ThisServerStatus.TextColor3 = Color3.fromRGB(255, 180, 50)
+                    NotifDot.Visible = true
+                    joinOnce()
+                    task.wait(5)
+                end
+            end
+        end)
+    else
+        AutoBtn.Text = "🔁 Auto: OFF"
+        AutoBtn.BackgroundColor3 = Color3.fromRGB(40, 130, 80)
+        if autoThread then
+            task.cancel(autoThread)
+            autoThread = nil
+        end
+        StatusLabel.Text = "Auto hop stopped."
+        StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    end
+end)
+
+-- Init
+StatusLabel.Text = "Ready. Set threshold and tap Hop."
+StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+ThisServerStatus.Text = "Status: —"
+ThisServerStatus.TextColor3 = Color3.fromRGB(180, 180, 180)
