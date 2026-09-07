@@ -1,0 +1,130 @@
+-- CLOVER HUB V3.5 MOBILE BY @Kelv
+-- Game: STEAL AN EGG
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- Load UI Library
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/wizard"))()
+local Window = Library:NewWindow("CLOVER HUB V3.5 | STEAL AN EGG")
+local MainTab = Window:NewSection("MAIN")
+local FarmTab = Window:NewSection("AUTO FARM")
+local MiscTab = Window:NewSection("MISC")
+
+-- Variables
+_G.AutoFarm = false
+_G.ESP = false
+_G.AutoSave = false
+_G.Noclip = false
+_G.SAVE_ZONE = nil -- bakal ke save otomatis
+
+-- Function ESP
+function createESP(obj)
+    if obj:FindFirstChild("CloverESP") then return end
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "CloverESP"
+    billboard.Adornee = obj
+    billboard.Size = UDim2.new(0,100,0,40)
+    billboard.StudsOffset = Vector3.new(0,3,0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = obj
+    
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1,0,1,0)
+    text.BackgroundTransparency = 1
+    text.Text = "EGG"
+    text.TextColor3 = Color3.fromRGB(168, 85, 247) -- ungu neon
+    text.TextStrokeTransparency = 0
+    text.Font = Enum.Font.GothamBold
+    text.Parent = billboard
+end
+
+-- SET SAVE ZONE PENCET TOMBOL AJA
+MainTab:CreateButton("SET SAVE ZONE DISINI", function()
+    _G.SAVE_ZONE = LocalPlayer.Character.HumanoidRootPart.CFrame
+    print("SAVE ZONE DI SET:", _G.SAVE_ZONE)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "CLOVER HUB";
+        Text = "Save Zone Berhasil Di Set!";
+        Duration = 3;
+    })
+end)
+
+-- AUTO FARM + AUTO TP SAVE ZONE
+FarmTab:CreateToggle("Auto Farm + Auto Save", function(state)
+    _G.AutoFarm = state
+    _G.AutoSave = state
+    if state then
+        task.spawn(function()
+            while _G.AutoFarm do
+                if not _G.SAVE_ZONE then
+                    print("SET SAVE ZONE DULU!")
+                    task.wait(2)
+                else
+                    local hasEgg = false
+                    -- 1. Cari telur
+                    for _, egg in pairs(workspace:GetDescendants()) do
+                        if egg.Name:lower():find("egg") and egg:IsA("TouchTransmitter") then
+                            hasEgg = true
+                            LocalPlayer.Character.HumanoidRootPart.CFrame = egg.Parent.CFrame
+                            task.wait(0.3)
+                            break
+                        end
+                    end
+                    
+                    -- 2. Kalau udah dapet telur, langsung TP ke save zone
+                    if _G.AutoSave and hasEgg then
+                        task.wait(0.5)
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = _G.SAVE_ZONE
+                        task.wait(1) 
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    end
+end)
+
+-- ESP EGG
+MainTab:CreateToggle("ESP Egg", function(state)
+    _G.ESP = state
+    if state then
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj.Name:lower():find("egg") then
+                createESP(obj.Parent)
+            end
+        end
+    else
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:FindFirstChild("CloverESP") then
+                obj.CloverESP:Destroy()
+            end
+        end
+    end
+end)
+
+-- TELEPORT TO SAVE ZONE
+MainTab:CreateButton("Teleport To Save Zone", function()
+    if _G.SAVE_ZONE then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = _G.SAVE_ZONE
+    else
+        print("SET SAVE ZONE DULU!")
+    end
+end)
+
+-- NO CLIP
+MiscTab:CreateToggle("No Clip", function(state)
+    _G.Noclip = state
+    RunService.Stepped:Connect(function()
+        if _G.Noclip and LocalPlayer.Character then
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.CanCollide = false
+                end
+            end
+        end
+    end)
+end)
+
+print("CLOVER HUB V3.5 LOADED")
