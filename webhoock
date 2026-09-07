@@ -1,17 +1,3 @@
-Skip to content
-Sign in
-Sign up
-Instantly share code, notes, and snippets.
-
-hanstoribiocanaan/script.lua
-Last active 9 hours ago
-Clone this repository at &lt;script src=&quot;https://gist.github.com/hanstoribiocanaan/48356d9b1a0fe11439650c350635c9b9.js&quot;&gt;&lt;/script&gt;
-<script src="https://gist.github.com/hanstoribiocanaan/48356d9b1a0fe11439650c350635c9b9.js"></script>
-Code
-Revisions
-6
-Steal An Egg Discord regeneration tracker - Delta/Xeno compatible
-script.lua
 --[[
     STEAL AN EGG - DISCORD REGEN TRACKER
     No contiene nombres de huevos, rarezas ni areas escritos a mano.
@@ -2545,16 +2531,3 @@ if not __runOk then
         Instance.new("UICorner", errorLabel).CornerRadius = UDim.new(0, 8)
     end)
 end
- to join this conversation on GitHub. Already have an account? Sign in to comment
-Footer
-© 2026 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-Status
-Community
-Docs
-Contact
-Manage cookies
-Do not share my personal information
