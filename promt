@@ -1,0 +1,198 @@
+---
+inclusion: auto
+name: mochii-preferences
+description: User coding preferences for Roblox Lua scripts — real functions, open source research, no key systems
+---
+
+# Mochii Scripts — Coding Preferences
+
+## Who I Am
+I make Roblox executor scripts (Lua) for the game **Steal An Egg** and similar egg-farming games.
+My scripts run inside executors like **Xeno**, **Delta**, **Wave**, and **Potassium**.
+I care about **real working code** — not made-up functions that look right but do nothing.
+
+---
+
+## #1 Rule — Real Functions and Variables Only
+
+**Before writing any Lua function or variable, you MUST verify it is real.**
+
+### What "real" means:
+- The function/property actually exists in the Roblox engine OR in the game's ReplicatedStorage
+- It is confirmed by at least ONE of these sources:
+  - Open source GitHub/Gist script that has been tested
+  - Roblox official API documentation (developer.roblox.com)
+  - Roblox DevForum post with community confirmation
+  - A decompiled/reversed game module path (e.g. from poccwo.lua)
+
+### When searching for real functions, the agent MUST:
+1. Search GitHub/Gist for open source scripts of the same game first
+2. Search Roblox DevForum for confirmed API usage
+3. Fetch and read the actual raw source code — not just snippets
+4. Label each function with its source URL in a comment
+5. If a function CANNOT be confirmed → say so explicitly and mark it as `-- UNCONFIRMED`
+
+---
+
+## Confirmed Real APIs (already researched — reuse these)
+
+### Roblox Engine (always real)
+```lua
+-- Movement / Character
+Humanoid.WalkSpeed = n                          -- real Roblox property
+Humanoid.JumpPower = n                          -- real Roblox property
+Humanoid.UseJumpPower = true                    -- real Roblox property
+HumanoidRootPart.CFrame = cf                    -- real, works in executors
+LocalPlayer.CharacterAdded:Connect(fn)          -- real event
+LocalPlayer.Character:FindFirstChildOfClass()   -- real method
+
+-- Physics / Noclip
+-- Source: github.com/Not-Kyle/Universal-Scripts.lua/Noclip.lua
+RunService.Heartbeat:Connect(fn)                -- real
+BasePart.CanCollide = false                      -- real property
+
+-- Performance stats
+-- Source: Roblox DevForum /t/pingfps-displayer/1670037
+LocalPlayer:GetNetworkPing()                    -- real, returns seconds → *1000 for ms
+RunService.RenderStepped:Connect(fn)            -- real, fires every render frame
+
+-- Teleport
+TeleportService:TeleportToPlaceInstance(PlaceId, jobId, LocalPlayer)  -- real
+game.JobId                                       -- real, current server's unique ID
+game.PlaceId                                     -- real
+
+-- Server list API (public Roblox web API, works via game:HttpGet)
+-- "https://games.roblox.com/v1/games/{PlaceId}/servers/Public?sortOrder=Asc&limit=100"
+-- Returns: id(jobId), maxPlayers, playing, fps, ping, nextPageCursor
+
+-- Time
+Workspace:GetServerTimeNow()                    -- real
+```
+
+### Steal An Egg Game Modules (confirmed from poccwo.lua open source)
+Source: https://gist.github.com/guzarem/bbafdd37b0165dc2690e06886f2d3ae0
+
+```lua
+-- Module paths (require these from ReplicatedStorage)
+require(ReplicatedStorage.Library.Util.AreaEggResetTimeUtil)
+require(ReplicatedStorage.Library.Client.EggCmds)
+require(ReplicatedStorage.Library.Client.PlotCmds)
+require(ReplicatedStorage.Library.Client.Save)
+require(ReplicatedStorage.Directory.Assets)
+
+-- EggCmds real functions
+EggCmds.GetAreaEggSnapshot()          -- returns { Records = [...] }
+EggCmds.RequestCarryAreaEgg(uid)      -- steals the egg, returns true/false
+EggCmds.RequestLocalEggRecord(uid)    -- returns egg record table
+EggCmds.IsLocalEggReady(uid)          -- returns bool
+EggCmds.RequestHatchEgg(uid)          -- hatches egg
+EggCmds.RequestCompleteHatchEgg(uid)  -- completes hatch
+EggCmds.RequestSkipGrowth(uid)        -- skips growth timer
+EggCmds.RequestEquipTool(uid)         -- equips egg as tool
+
+-- PlotCmds real functions
+PlotCmds.GetPlotData()                -- returns { PlotFolder, PetArea, RespawnPointCFrame }
+PlotCmds.GetRespawnPointCFrame()      -- returns CFrame
+
+-- Save real functions/fields
+Save.Get()                            -- returns { EggInventory, Money, SpeedPower,
+                                      --           EquippedTrail, TreadmillUpgradeLevel,
+                                      --           TrailInventory }
+
+-- AssetsDir real fields
+AssetsDir.Directory[category].Rarity.RarityNumber   -- number score
+AssetsDir.Directory[category].Rarity._id             -- string name e.g. "Divine"
+AssetsDir.Directory[category].EarningRate            -- number
+
+-- EggSnapshot record fields (from GetAreaEggSnapshot)
+rec.State           -- "Slot" means egg is available to steal
+rec.Uid             -- unique egg ID
+rec.AreaId          -- biome name e.g. "Cosmic", "Forest"
+rec.AssetCategory   -- egg type name
+rec.BottomCFrame    -- CFrame position of egg in world
+rec.BaseMutation    -- string e.g. "Rainbow", "Gold", ""
+rec.Mutations       -- table of mutation strings
+
+-- Real workspace paths
+Workspace.__OBJECTS.Areas.GameplayZ          -- BasePart, the road line
+Workspace.__OBJECTS.Areas.GuardAreas         -- folder of guard zones
+-- Each guard area child has:
+area:FindFirstChild("Guard")                 -- guard model
+area:FindFirstChild("ForestGuardAuthored")   -- Forest-specific guard
+
+-- Real rarity tier order (Divine = highest)
+-- Divine > Eternal > Secret > Cosmic > Mythic > Legendary > Epic > Rare > Uncommon > Common
+
+-- Real biome names and rank
+-- Forest=1, Lake=2, Desert=3, Jungle=4, Snow=5, Volcano=6,
+-- Abyss Ocean=7, Prehistoric=8, Cosmic=9, Cherry Blossom/Sakura=10
+
+-- Newer network path (from new.lua Discord tracker script)
+-- Some updates use: ReplicatedStorage.Packages.Networking
+-- RF/EggWorld/AskFieldEggSnapshot     → RemoteFunction
+-- RE/EggWorld/FieldEggBatchShifted    → RemoteEvent (batch egg spawns)
+-- RE/EggWorld/FieldEggShifted         → RemoteEvent (single egg shift)
+-- RE/EggWorld/FieldEggGone            → RemoteEvent (egg taken)
+-- RE/EggWorld/FieldEggCycleCountdown  → RemoteEvent (respawn timer)
+```
+
+---
+
+## Movement Modes (all confirmed real)
+
+| Mode | Real API | Source |
+|------|----------|--------|
+| GROUND | `Humanoid.WalkSpeed = n` + `CharacterAdded` repersist | AgentZer00 gist |
+| PHANTOM | `Heartbeat` → `BasePart.CanCollide = false` | Not-Kyle + zxciaz noclip |
+| TWEEN | `RenderStepped` lerp on `HumanoidRootPart.CFrame` | DevForum (avoids TweenService HRP breakage) |
+| INSTANT | Direct `HRP.CFrame = cf` (3-frame hold) | poccwo.lua hopTo pattern |
+
+**NOTE:** `TweenService:Create(HumanoidRootPart, ...)` directly **breaks physics** — never use it for player movement. Always use RenderStepped lerp instead.
+
+---
+
+## What I Don't Want
+
+- ❌ No made-up module paths or function names
+- ❌ No key systems (linkvertise, pastebin redirect, etc.)
+- ❌ No obfuscated loadstrings
+- ❌ No functions that "look real" but have no confirmed source
+- ❌ No unnecessary pcall wrappers hiding broken code
+- ❌ No claiming something works when it hasn't been searched
+
+---
+
+## Search Protocol for New Features
+
+When I ask for a new feature, the agent MUST follow this order:
+
+1. **Search GitHub/Gist** — look for open source scripts of the same game
+2. **Fetch raw source** — actually read the `.lua` file, not just the repo page
+3. **Search DevForum** — for official Roblox API confirmation
+4. **Report findings honestly** — say what's real, what's uncertain, what's impossible
+5. **Label code** — every non-obvious function gets a `-- Source: URL` comment
+6. **If nothing found** — say "no open source found for this" and build a best-effort implementation marked `-- UNCONFIRMED — needs in-game verification`
+
+---
+
+## Script Style Preferences
+
+- No key system, ever
+- Draggable GUI cards (compact, mobile-friendly)
+- Chat bubble UI pattern for server hop type scripts
+- Buttons: AUTO toggle, mode toggles, action buttons
+- Live stats display: Ping, FPS, current action
+- Generation guard pattern: `_G.__EggStealGen` + `_G.__EggStealKill`
+- Module retry on boot (handle early executor injection)
+- All HTML-escaped Lua operators (`\~=`, `..=`) must be replaced with real operators
+- Comments explain the "why" not just the "what"
+- File naming: SEA.LUA for Steal An Egg scripts, serverhopscript.lua for server hop
+
+---
+
+## Games I Script For
+
+- **Steal An Egg** (PlaceId: 107778070777162) — primary game
+  - Eggs, biomes, guards, treadmill, Sakura crystals
+  - Uses `ReplicatedStorage.Library.Client.*` module architecture
+- General Roblox executor scripts (universal)
