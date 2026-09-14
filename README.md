@@ -2,3 +2,5 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/dertmo01/sae/refs/hea
 loadstring(game:HttpGet("https://raw.githubusercontent.com/dertmo01/sae/refs/heads/main/1SERVER"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/dertmo01/sae/refs/heads/main/STEALANEGG"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/GlazeScripts/Fyy-Community/refs/heads/main/Glazehub.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/JualNasiRendang/loader/refs/heads/main/main.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/dertmo01/sae/refs/heads/main/MAIN"))()
