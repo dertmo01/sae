@@ -132,7 +132,7 @@ end
 local Bubble = mkframe(ScreenGui, {
     bg  = C.panel,
     sz  = UDim2.new(0, 180, 0, 54),
-    pos = UDim2.new(0, 24, 1, 0),
+    pos = UDim2.new(0, 24, 0.5, 24),
     z   = 10,
 })
 corner(Bubble, 28)
