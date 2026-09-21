@@ -364,26 +364,21 @@ AutoBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==============================
--- REJOIN — leave then come back to the SAME server
--- Flow: save JobId → teleport away → on next load, teleport back to saved JobId
--- Uses TeleportService:GetLocalPlayerTeleportData() to read the saved JobId after load
+-- REJOIN — disconnect and reconnect to the exact same server
+-- TeleportToPlaceInstance(PlaceId, game.JobId) with no player arg is the
+-- standard executor rejoin pattern — works client-side, kicks and puts you
+-- back into the same JobId instance.
+-- Confirmed from: https://github.com/ic3w0lf22/Environment-Autoexec
 -- ==============================
 
 RejoinBtn.MouseButton1Click:Connect(function()
     RejoinBtn.Active = false
-
-    local savedJobId = tostring(game.JobId)  -- save THIS server's JobId right now
-
-    StatusLabel.Text = "Leaving server... will rejoin in a moment."
+    StatusLabel.Text = "Rejoining server..."
     StatusLabel.TextColor3 = Color3.fromRGB(180, 120, 255)
-    task.wait(0.8)
+    task.wait(0.5)
 
-    -- Pass the saved JobId as teleport data so the next load can read it
-    local teleportOptions = Instance.new("TeleportOptions")
-    teleportOptions:SetTeleportData({ rejoinJobId = savedJobId })
-    -- Teleport to a public server of the same place (this causes a real leave)
     local ok, err = pcall(function()
-        TeleportService:TeleportAsync(PlaceId, { LocalPlayer }, teleportOptions)
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId)
     end)
 
     if not ok then
@@ -391,24 +386,7 @@ RejoinBtn.MouseButton1Click:Connect(function()
         StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
         task.wait(2)
         RejoinBtn.Active = true
-        return
     end
-
-    -- After teleport fires, on the NEW server load, read the passed data and jump back
-    -- This runs when you land on the temporary server
-    task.spawn(function()
-        task.wait(3) -- give the teleport time to land
-        local data = TeleportService:GetLocalPlayerTeleportData()
-        if data and type(data) == "table" and data.rejoinJobId then
-            local targetJobId = data.rejoinJobId
-            local ok2, err2 = pcall(function()
-                TeleportService:TeleportToPlaceInstance(PlaceId, targetJobId, LocalPlayer)
-            end)
-            if not ok2 then
-                warn("Auto-rejoin back failed: " .. tostring(err2))
-            end
-        end
-    end)
 end)
 
 -- Init
