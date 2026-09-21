@@ -1,12 +1,16 @@
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
-local OriginalServerId = tostring(game.JobId) -- Save the server you joined on start
+local OriginalServerId = game.JobId -- real JobId string saved the moment the script runs
 
--- GUI Creation
+-- ==============================
+-- GUI Setup
+-- ==============================
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "PrivateServerBypassGUI"
 ScreenGui.ResetOnSpawn = false
@@ -20,159 +24,225 @@ else
     ScreenGui.Parent = game.CoreGui
 end
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -145, 0.5, -110)
-MainFrame.Size = UDim2.new(0, 290, 0, 265)
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.ClipsDescendants = true
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+-- ==============================
+-- Chat Bubble Container
+-- ==============================
 
--- Header Background
-local TitleBar = Instance.new("Frame", MainFrame)
-TitleBar.Size = UDim2.new(1, 0, 0, 36)
-TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
-TitleBar.BorderSizePixel = 0
-Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 8)
+local Bubble = Instance.new("Frame")
+Bubble.Name = "ChatBubble"
+Bubble.Parent = ScreenGui
+Bubble.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+Bubble.BorderSizePixel = 0
+Bubble.Position = UDim2.new(0, 20, 1, -20) -- starts offscreen bottom-left
+Bubble.Size = UDim2.new(0, 300, 0, 0)       -- starts collapsed
+Bubble.ClipsDescendants = true
+Bubble.Active = true
+Bubble.Draggable = true
 
--- Title Text
-local Title = Instance.new("TextLabel", TitleBar)
-Title.Size = UDim2.new(0, 122, 1, 0)
-Title.Position = UDim2.new(0, 8, 0, 0)
+local BubbleCorner = Instance.new("UICorner", Bubble)
+BubbleCorner.CornerRadius = UDim.new(0, 16)
+
+-- Bubble tail (little triangle pointer at bottom-left)
+local Tail = Instance.new("Frame", Bubble)
+Tail.Size = UDim2.new(0, 16, 0, 16)
+Tail.Position = UDim2.new(0, 12, 1, -2)
+Tail.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+Tail.BorderSizePixel = 0
+Tail.ZIndex = 0
+local TailCorner = Instance.new("UICorner", Tail)
+TailCorner.CornerRadius = UDim.new(0, 3)
+-- rotate tail to look like a speech bubble pointer
+Tail.Rotation = 45
+
+-- Stroke / outline
+local Stroke = Instance.new("UIStroke", Bubble)
+Stroke.Color = Color3.fromRGB(80, 80, 130)
+Stroke.Thickness = 1.5
+Stroke.Transparency = 0.4
+
+-- ==============================
+-- Header
+-- ==============================
+
+local Header = Instance.new("Frame", Bubble)
+Header.Size = UDim2.new(1, 0, 0, 40)
+Header.Position = UDim2.new(0, 0, 0, 0)
+Header.BackgroundColor3 = Color3.fromRGB(35, 35, 58)
+Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 16)
+
+-- Keep bottom of header square so it blends into body
+local HeaderFill = Instance.new("Frame", Header)
+HeaderFill.Size = UDim2.new(1, 0, 0.5, 0)
+HeaderFill.Position = UDim2.new(0, 0, 0.5, 0)
+HeaderFill.BackgroundColor3 = Color3.fromRGB(35, 35, 58)
+HeaderFill.BorderSizePixel = 0
+
+-- Avatar circle
+local Avatar = Instance.new("Frame", Header)
+Avatar.Size = UDim2.new(0, 26, 0, 26)
+Avatar.Position = UDim2.new(0, 10, 0.5, -13)
+Avatar.BackgroundColor3 = Color3.fromRGB(120, 60, 200)
+Avatar.BorderSizePixel = 0
+Instance.new("UICorner", Avatar).CornerRadius = UDim.new(1, 0)
+
+local AvatarLabel = Instance.new("TextLabel", Avatar)
+AvatarLabel.Size = UDim2.new(1, 0, 1, 0)
+AvatarLabel.BackgroundTransparency = 1
+AvatarLabel.Font = Enum.Font.GothamBold
+AvatarLabel.Text = "M"
+AvatarLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+AvatarLabel.TextSize = 13
+
+-- Title
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(0, 140, 1, 0)
+Title.Position = UDim2.new(0, 44, 0, 0)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBold
-Title.Text = "Private Server Bypass"
+Title.Text = "Server Bypass"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 12
+Title.TextSize = 13
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Credit Text (Right of Title)
-local Credit = Instance.new("TextLabel", TitleBar)
-Credit.Size = UDim2.new(0, 110, 1, 0)
-Credit.Position = UDim2.new(0, 133, 0, 0)
-Credit.BackgroundTransparency = 1
-Credit.Font = Enum.Font.Gotham
-Credit.Text = "Made by Mochii Scripts"
-Credit.TextColor3 = Color3.fromRGB(160, 160, 180)
-Credit.TextSize = 9
-Credit.TextXAlignment = Enum.TextXAlignment.Left
+local Sub = Instance.new("TextLabel", Header)
+Sub.Size = UDim2.new(0, 140, 0, 14)
+Sub.Position = UDim2.new(0, 44, 1, -16)
+Sub.BackgroundTransparency = 1
+Sub.Font = Enum.Font.Gotham
+Sub.Text = "Mochii Scripts"
+Sub.TextColor3 = Color3.fromRGB(130, 130, 170)
+Sub.TextSize = 10
+Sub.TextXAlignment = Enum.TextXAlignment.Left
 
--- Red Box Close Button (X Button)
-local CloseBtn = Instance.new("TextButton", TitleBar)
+-- Close button
+local CloseBtn = Instance.new("TextButton", Header)
+CloseBtn.Size = UDim2.new(0, 22, 0, 22)
+CloseBtn.Position = UDim2.new(1, -30, 0.5, -11)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 CloseBtn.BorderSizePixel = 0
-CloseBtn.Position = UDim2.new(1, -26, 0, 7)
-CloseBtn.Size = UDim2.new(0, 20, 0, 20)
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Text = "X"
+CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseBtn.TextSize = 11
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
--- Toggle / Hide Button
-local ToggleBtn = Instance.new("TextButton", TitleBar)
-ToggleBtn.BackgroundTransparency = 1
-ToggleBtn.Position = UDim2.new(1, -50, 0, 7)
-ToggleBtn.Size = UDim2.new(0, 20, 0, 20)
-ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.Text = "—"
-ToggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-ToggleBtn.TextSize = 13
+-- ==============================
+-- Body / Content
+-- ==============================
 
-local isHidden = false
-ToggleBtn.MouseButton1Click:Connect(function()
-    isHidden = not isHidden
-    if isHidden then
-        MainFrame:TweenSize(UDim2.new(0, 290, 0, 36), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.25, true)
-        ToggleBtn.Text = "+"
-    else
-        MainFrame:TweenSize(UDim2.new(0, 290, 0, 265), Enum.EasingDirection.Out, Enum.EasingStyle.Quart, 0.25, true)
-        ToggleBtn.Text = "—"
-    end
-end)
+local Body = Instance.new("Frame", Bubble)
+Body.Size = UDim2.new(1, 0, 1, -40)
+Body.Position = UDim2.new(0, 0, 0, 40)
+Body.BackgroundTransparency = 1
+Body.BorderSizePixel = 0
 
--- Current Player Count Label
-local NowLabel = Instance.new("TextLabel", MainFrame)
-NowLabel.Position = UDim2.new(0, 10, 0, 44)
-NowLabel.Size = UDim2.new(1, -20, 0, 22)
+-- Player count row
+local NowLabel = Instance.new("TextLabel", Body)
+NowLabel.Position = UDim2.new(0, 12, 0, 8)
+NowLabel.Size = UDim2.new(1, -24, 0, 20)
 NowLabel.BackgroundTransparency = 1
 NowLabel.Font = Enum.Font.GothamBold
 NowLabel.TextXAlignment = Enum.TextXAlignment.Left
-NowLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
-NowLabel.TextSize = 13
+NowLabel.TextColor3 = Color3.fromRGB(100, 220, 130)
+NowLabel.TextSize = 12
 
--- Status Display Label
-local StatusLabel = Instance.new("TextLabel", MainFrame)
-StatusLabel.Position = UDim2.new(0, 10, 0, 70)
-StatusLabel.Size = UDim2.new(1, -20, 0, 30)
+-- Status bubble (message-style)
+local MsgBg = Instance.new("Frame", Body)
+MsgBg.Position = UDim2.new(0, 12, 0, 32)
+MsgBg.Size = UDim2.new(1, -24, 0, 34)
+MsgBg.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+MsgBg.BorderSizePixel = 0
+Instance.new("UICorner", MsgBg).CornerRadius = UDim.new(0, 10)
+
+local StatusLabel = Instance.new("TextLabel", MsgBg)
+StatusLabel.Size = UDim2.new(1, -12, 1, 0)
+StatusLabel.Position = UDim2.new(0, 8, 0, 0)
 StatusLabel.BackgroundTransparency = 1
 StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-StatusLabel.TextSize = 12
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+StatusLabel.TextSize = 11
 StatusLabel.TextWrapped = true
 
--- Max Player Threshold Label (Pinalitan na ang text)
-local MaxLabel = Instance.new("TextLabel", MainFrame)
-MaxLabel.Position = UDim2.new(0, 10, 0, 105)
-MaxLabel.Size = UDim2.new(1, -20, 0, 18)
-MaxLabel.BackgroundTransparency = 1
-MaxLabel.Font = Enum.Font.Gotham
-MaxLabel.TextXAlignment = Enum.TextXAlignment.Left
-MaxLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
-MaxLabel.TextSize = 10
-MaxLabel.Text = "Press join again if you were sent to the wrong server"
+-- Threshold hint
+local HintLabel = Instance.new("TextLabel", Body)
+HintLabel.Position = UDim2.new(0, 12, 0, 74)
+HintLabel.Size = UDim2.new(1, -24, 0, 14)
+HintLabel.BackgroundTransparency = 1
+HintLabel.Font = Enum.Font.Gotham
+HintLabel.TextXAlignment = Enum.TextXAlignment.Left
+HintLabel.TextColor3 = Color3.fromRGB(120, 120, 160)
+HintLabel.TextSize = 10
+HintLabel.Text = "Max players threshold (rejoin if above):"
 
-local MaxBox = Instance.new("TextBox", MainFrame)
-MaxBox.Position = UDim2.new(0, 10, 0, 126)
-MaxBox.Size = UDim2.new(1, -20, 0, 28)
-MaxBox.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+-- Threshold input
+local MaxBox = Instance.new("TextBox", Body)
+MaxBox.Position = UDim2.new(0, 12, 0, 91)
+MaxBox.Size = UDim2.new(1, -24, 0, 28)
+MaxBox.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
 MaxBox.BorderSizePixel = 0
 MaxBox.Font = Enum.Font.GothamBold
 MaxBox.Text = "1"
 MaxBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 MaxBox.TextSize = 14
 MaxBox.ClearTextOnFocus = false
-Instance.new("UICorner", MaxBox).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", MaxBox).CornerRadius = UDim.new(0, 8)
 
--- Action Buttons
-local JoinBtn = Instance.new("TextButton", MainFrame)
-JoinBtn.Position = UDim2.new(0, 10, 0, 162)
-JoinBtn.Size = UDim2.new(0, 125, 0, 40)
-JoinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 180)
+-- ==============================
+-- Buttons
+-- ==============================
+
+-- Join button
+local JoinBtn = Instance.new("TextButton", Body)
+JoinBtn.Position = UDim2.new(0, 12, 0, 128)
+JoinBtn.Size = UDim2.new(0, 82, 0, 36)
+JoinBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 200)
 JoinBtn.BorderSizePixel = 0
 JoinBtn.Font = Enum.Font.GothamBold
 JoinBtn.Text = "Join"
 JoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 JoinBtn.TextSize = 13
-Instance.new("UICorner", JoinBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", JoinBtn).CornerRadius = UDim.new(0, 10)
 
-local AutoBtn = Instance.new("TextButton", MainFrame)
-AutoBtn.Position = UDim2.new(0, 145, 0, 162)
-AutoBtn.Size = UDim2.new(0, 135, 0, 40)
+-- Auto Join button
+local AutoBtn = Instance.new("TextButton", Body)
+AutoBtn.Position = UDim2.new(0, 102, 0, 128)
+AutoBtn.Size = UDim2.new(0, 90, 0, 36)
 AutoBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 70)
 AutoBtn.BorderSizePixel = 0
 AutoBtn.Font = Enum.Font.GothamBold
-AutoBtn.Text = "Auto Join: OFF"
+AutoBtn.Text = "Auto: OFF"
 AutoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 AutoBtn.TextSize = 13
-Instance.new("UICorner", AutoBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", AutoBtn).CornerRadius = UDim.new(0, 10)
 
--- Rejoin Button (returns to the original server you joined)
-local RejoinBtn = Instance.new("TextButton", MainFrame)
-RejoinBtn.Position = UDim2.new(0, 10, 0, 212)
-RejoinBtn.Size = UDim2.new(1, -20, 0, 40)
-RejoinBtn.BackgroundColor3 = Color3.fromRGB(120, 60, 180)
+-- Rejoin My Server button
+local RejoinBtn = Instance.new("TextButton", Body)
+RejoinBtn.Position = UDim2.new(0, 200, 0, 128)
+RejoinBtn.Size = UDim2.new(0, 88, 0, 36)
+RejoinBtn.BackgroundColor3 = Color3.fromRGB(120, 50, 190)
 RejoinBtn.BorderSizePixel = 0
 RejoinBtn.Font = Enum.Font.GothamBold
-RejoinBtn.Text = "Rejoin My Server"
+RejoinBtn.Text = "↩ Rejoin"
 RejoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 RejoinBtn.TextSize = 13
-Instance.new("UICorner", RejoinBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", RejoinBtn).CornerRadius = UDim.new(0, 10)
+
+-- ==============================
+-- Pop-in Animation
+-- ==============================
+
+-- Animate the bubble popping in from the bottom-left
+local targetPos = UDim2.new(0, 20, 1, -200)
+local targetSize = UDim2.new(0, 300, 0, 185)
+
+local tweenIn = TweenService:Create(Bubble, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Position = targetPos,
+    Size = targetSize,
+})
+tweenIn:Play()
 
 -- ==============================
 -- LOGIC
@@ -181,11 +251,11 @@ Instance.new("UICorner", RejoinBtn).CornerRadius = UDim.new(0, 6)
 local autoEnabled = false
 local autoThread = nil
 
--- Realtime player count monitor
+-- Realtime player count
 task.spawn(function()
     while ScreenGui.Parent do
         local count = #Players:GetPlayers()
-        NowLabel.Text = "Players in server: " .. count
+        NowLabel.Text = "● " .. count .. " player(s) in this server"
         task.wait(1)
     end
 end)
@@ -207,7 +277,6 @@ local function getRandomServer()
     end
 
     if #candidates == 0 then return nil end
-
     return candidates[math.random(1, #candidates)]
 end
 
@@ -216,23 +285,23 @@ local function joinOnce()
     local currentCount = #Players:GetPlayers()
 
     if currentCount <= threshold then
-        StatusLabel.Text = "✓ Current server has " .. currentCount .. " player(s). No join needed."
-        StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+        StatusLabel.Text = "✓ Only " .. currentCount .. " player(s). No need to hop."
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 130)
         return false
     end
 
-    StatusLabel.Text = "Server has " .. currentCount .. " players. Searching for another server..."
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+    StatusLabel.Text = "Searching for a low-pop server..."
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 210, 60)
     task.wait(0.5)
 
     local serverId = getRandomServer()
     if not serverId then
-        StatusLabel.Text = "Failed to fetch server list. Check HTTP Requests in executor."
+        StatusLabel.Text = "Couldn't fetch servers. Enable HTTP in executor."
         StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
         return false
     end
 
-    StatusLabel.Text = "Teleporting to another server..."
+    StatusLabel.Text = "Teleporting..."
     StatusLabel.TextColor3 = Color3.fromRGB(120, 180, 255)
     task.wait(0.5)
 
@@ -241,7 +310,7 @@ local function joinOnce()
     end)
 
     if not ok then
-        StatusLabel.Text = "Teleport error: " .. tostring(err):sub(1, 60)
+        StatusLabel.Text = "Error: " .. tostring(err):sub(1, 55)
         StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
         return false
     end
@@ -249,6 +318,7 @@ local function joinOnce()
     return true
 end
 
+-- Join button
 JoinBtn.MouseButton1Click:Connect(function()
     JoinBtn.Active = false
     joinOnce()
@@ -256,11 +326,12 @@ JoinBtn.MouseButton1Click:Connect(function()
     JoinBtn.Active = true
 end)
 
+-- Auto Join button
 AutoBtn.MouseButton1Click:Connect(function()
     autoEnabled = not autoEnabled
 
     if autoEnabled then
-        AutoBtn.Text = "Auto Join: ON"
+        AutoBtn.Text = "Auto: ON"
         AutoBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 
         autoThread = task.spawn(function()
@@ -269,8 +340,8 @@ AutoBtn.MouseButton1Click:Connect(function()
                 local count = #Players:GetPlayers()
 
                 if count <= threshold then
-                    StatusLabel.Text = "✓ " .. count .. " player(s) here. Waiting..."
-                    StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+                    StatusLabel.Text = "✓ " .. count .. " player(s). Watching..."
+                    StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 130)
                     task.wait(3)
                 else
                     joinOnce()
@@ -279,40 +350,50 @@ AutoBtn.MouseButton1Click:Connect(function()
             end
         end)
     else
-        AutoBtn.Text = "Auto Join: OFF"
+        AutoBtn.Text = "Auto: OFF"
         AutoBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 70)
         if autoThread then
             task.cancel(autoThread)
             autoThread = nil
         end
         StatusLabel.Text = "Auto Join stopped."
-        StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+        StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
     end
 end)
 
+-- Rejoin My Server button
 RejoinBtn.MouseButton1Click:Connect(function()
     RejoinBtn.Active = false
-    if OriginalServerId == "" or OriginalServerId == tostring(game.JobId) then
+
+    -- If we're already on the original server, no need to teleport
+    if OriginalServerId == "" or OriginalServerId == game.JobId then
         StatusLabel.Text = "You're already on your original server!"
-        StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 100)
+        StatusLabel.TextColor3 = Color3.fromRGB(100, 220, 130)
         task.wait(2)
         RejoinBtn.Active = true
         return
     end
-    StatusLabel.Text = "Rejoining your original server..."
+
+    StatusLabel.Text = "Heading back to your server..."
     StatusLabel.TextColor3 = Color3.fromRGB(180, 120, 255)
     task.wait(0.5)
+
+    -- Use TeleportAsync with TeleportOptions.ServerInstanceId (real Roblox API)
+    -- Source: https://devforum.roblox.com/t/make-player-rejoin-same-server/2824030/6
     local ok, err = pcall(function()
-        TeleportService:TeleportToPlaceInstance(PlaceId, OriginalServerId, LocalPlayer)
+        local teleportOptions = Instance.new("TeleportOptions")
+        teleportOptions.ServerInstanceId = OriginalServerId
+        TeleportService:TeleportAsync(PlaceId, { LocalPlayer }, teleportOptions)
     end)
+
     if not ok then
-        StatusLabel.Text = "Rejoin error: " .. tostring(err):sub(1, 60)
+        StatusLabel.Text = "Rejoin failed: " .. tostring(err):sub(1, 50)
         StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
         task.wait(2)
         RejoinBtn.Active = true
     end
 end)
 
--- Initialization
-StatusLabel.Text = "Ready. Set target limit and click Join."
-StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+-- Init status
+StatusLabel.Text = "Ready — set threshold and hit Join."
+StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
