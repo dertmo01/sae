@@ -1,0 +1,1417 @@
+--// STEAL AN EGG - EGG RECON v1
+--// READ-ONLY STRUCTURE INSPECTOR
+--// Does NOT invoke remotes/prompts or automate interaction.
+
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+--------------------------------------------------
+-- CONFIG
+--------------------------------------------------
+
+local SCAN_RADIUS = 150
+local MAX_RESULTS = 30
+
+-- Keep this intentionally broad for reconnaissance.
+local EGG_KEYWORDS = {
+    "egg",
+}
+
+--------------------------------------------------
+-- UI
+--------------------------------------------------
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "EggReconV1"
+gui.ResetOnSpawn = false
+gui.Parent = PlayerGui
+
+local main = Instance.new("Frame")
+main.Size = UDim2.fromOffset(650, 560)
+main.Position = UDim2.new(0.5, -325, 0.5, -280)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+main.BorderSizePixel = 0
+main.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = main
+
+--------------------------------------------------
+-- TITLE
+--------------------------------------------------
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 36)
+title.Position = UDim2.fromOffset(10, 5)
+title.BackgroundTransparency = 1
+title.Text = "EGG RECON v1"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.TextSize = 20
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = main
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 24)
+status.Position = UDim2.fromOffset(10, 40)
+status.BackgroundTransparency = 1
+status.Text = "Ready"
+status.TextColor3 = Color3.fromRGB(170, 170, 180)
+status.TextSize = 13
+status.Font = Enum.Font.Gotham
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = main
+
+--------------------------------------------------
+-- BUTTONS
+--------------------------------------------------
+
+local function makeButton(name, x, width)
+
+    local button = Instance.new("TextButton")
+
+    button.Size = UDim2.fromOffset(width, 34)
+    button.Position = UDim2.fromOffset(x, 70)
+
+    button.BackgroundColor3 =
+        Color3.fromRGB(45, 45, 55)
+
+    button.TextColor3 =
+        Color3.new(1, 1, 1)
+
+    button.TextSize = 13
+    button.Font = Enum.Font.GothamBold
+    button.Text = name
+    button.Parent = main
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = button
+
+    return button
+end
+
+local scanButton =
+    makeButton("SCAN EGGS", 10, 110)
+
+local inspectButton =
+    makeButton("INSPECT #1", 130, 120)
+
+local snapshotButton =
+    makeButton("SNAPSHOT", 260, 120)
+
+local compareButton =
+    makeButton("COMPARE", 390, 120)
+
+local clearButton =
+    makeButton("CLEAR", 520, 100)
+
+--------------------------------------------------
+-- OUTPUT
+--------------------------------------------------
+
+local output = Instance.new("ScrollingFrame")
+
+output.Size =
+    UDim2.new(1, -20, 1, -120)
+
+output.Position =
+    UDim2.fromOffset(10, 115)
+
+output.BackgroundColor3 =
+    Color3.fromRGB(10, 10, 13)
+
+output.BorderSizePixel = 0
+
+output.ScrollBarThickness = 7
+
+output.Parent = main
+
+local outputText = Instance.new("TextLabel")
+
+outputText.Size =
+    UDim2.new(1, -20, 0, 0)
+
+outputText.Position =
+    UDim2.fromOffset(10, 10)
+
+outputText.BackgroundTransparency = 1
+
+outputText.TextColor3 =
+    Color3.fromRGB(220, 220, 225)
+
+outputText.TextSize = 12
+
+outputText.Font = Enum.Font.Code
+
+outputText.TextXAlignment =
+    Enum.TextXAlignment.Left
+
+outputText.TextYAlignment =
+    Enum.TextYAlignment.Top
+
+outputText.AutomaticSize =
+    Enum.AutomaticSize.Y
+
+outputText.Parent = output
+
+--------------------------------------------------
+-- HELPERS
+--------------------------------------------------
+
+local function getCharacterRoot()
+
+    local character =
+        LocalPlayer.Character
+
+    if not character then
+        return nil
+    end
+
+    return character:FindFirstChild(
+        "HumanoidRootPart"
+    )
+end
+
+local function getPosition(instance)
+
+    if instance:IsA("BasePart") then
+        return instance.Position
+    end
+
+    if instance:IsA("Model") then
+
+        if instance.PrimaryPart then
+            return instance.PrimaryPart.Position
+        end
+
+        local part =
+            instance:FindFirstChildWhichIsA(
+                "BasePart",
+                true
+            )
+
+        if part then
+            return part.Position
+        end
+    end
+
+    return nil
+end
+
+local function getDistance(instance)
+
+    local root =
+        getCharacterRoot()
+
+    local position =
+        getPosition(instance)
+
+    if not root or not position then
+        return math.huge
+    end
+
+    return (
+        root.Position - position
+    ).Magnitude
+end
+
+local function isEggName(name)
+
+    local lower =
+        string.lower(name)
+
+    for _, keyword in ipairs(
+        EGG_KEYWORDS
+    ) do
+
+        if string.find(
+            lower,
+            keyword,
+            1,
+            true
+        ) then
+            return true
+        end
+
+    end
+
+    return false
+end
+
+local function formatValue(value)
+
+    local valueType =
+        typeof(value)
+
+    if valueType == "Vector3" then
+
+        return string.format(
+            "(%.2f, %.2f, %.2f)",
+            value.X,
+            value.Y,
+            value.Z
+        )
+
+    elseif valueType == "CFrame" then
+
+        local p =
+            value.Position
+
+        return string.format(
+            "CFrame(%.2f, %.2f, %.2f)",
+            p.X,
+            p.Y,
+            p.Z
+        )
+
+    elseif valueType == "Color3" then
+
+        return string.format(
+            "RGB(%.2f, %.2f, %.2f)",
+            value.R,
+            value.G,
+            value.B
+        )
+
+    end
+
+    return tostring(value)
+end
+
+--------------------------------------------------
+-- EGG RESULTS
+--------------------------------------------------
+
+local eggResults = {}
+
+local function scanEggs()
+
+    eggResults = {}
+
+    local root =
+        getCharacterRoot()
+
+    if not root then
+
+        status.Text =
+            "Character root unavailable"
+
+        return
+    end
+
+    for _, instance in ipairs(
+        workspace:GetDescendants()
+    ) do
+
+        if isEggName(instance.Name) then
+
+            local distance =
+                getDistance(instance)
+
+            if distance <= SCAN_RADIUS then
+
+                table.insert(
+                    eggResults,
+                    {
+                        instance = instance,
+                        distance = distance
+                    }
+                )
+
+            end
+        end
+    end
+
+    table.sort(
+        eggResults,
+        function(a, b)
+            return a.distance < b.distance
+        end
+    )
+
+    while #eggResults > MAX_RESULTS do
+        table.remove(eggResults)
+    end
+
+    local lines = {}
+
+    table.insert(
+        lines,
+        "=============================="
+    )
+
+    table.insert(
+        lines,
+        "EGG RECON v1"
+    )
+
+    table.insert(
+        lines,
+        "=============================="
+    )
+
+    table.insert(
+        lines,
+        "Found: " ..
+        tostring(#eggResults)
+    )
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    for index, result in ipairs(
+        eggResults
+    ) do
+
+        local obj =
+            result.instance
+
+        table.insert(
+            lines,
+            string.format(
+                "[%02d] %s <%s> %.1f studs",
+                index,
+                obj.Name,
+                obj.ClassName,
+                result.distance
+            )
+        )
+
+        table.insert(
+            lines,
+            "     " ..
+            obj:GetFullName()
+        )
+
+    end
+
+    outputText.Text =
+        table.concat(
+            lines,
+            "\n"
+        )
+
+    status.Text =
+        "Found " ..
+        tostring(#eggResults) ..
+        " egg-related objects"
+
+end
+
+--------------------------------------------------
+-- INSPECT OBJECT
+--------------------------------------------------
+
+local function inspectObject(instance)
+
+    if not instance then
+        return
+    end
+
+    local lines = {}
+
+    table.insert(
+        lines,
+        "=========================================="
+    )
+
+    table.insert(
+        lines,
+        "EGG OBJECT INSPECTION"
+    )
+
+    table.insert(
+        lines,
+        "=========================================="
+    )
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    --------------------------------------------------
+    -- BASIC
+    --------------------------------------------------
+
+    table.insert(
+        lines,
+        "[BASIC]"
+    )
+
+    table.insert(
+        lines,
+        "Name      : " ..
+        instance.Name
+    )
+
+    table.insert(
+        lines,
+        "Class     : " ..
+        instance.ClassName
+    )
+
+    table.insert(
+        lines,
+        "Parent    : " ..
+        (
+            instance.Parent
+            and instance.Parent:GetFullName()
+            or "nil"
+        )
+    )
+
+    table.insert(
+        lines,
+        "Full Path : " ..
+        instance:GetFullName()
+    )
+
+    local position =
+        getPosition(instance)
+
+    if position then
+
+        table.insert(
+            lines,
+            string.format(
+                "Position  : %.2f, %.2f, %.2f",
+                position.X,
+                position.Y,
+                position.Z
+            )
+        )
+
+    end
+
+    --------------------------------------------------
+    -- ATTRIBUTES
+    --------------------------------------------------
+
+    local attributes =
+        instance:GetAttributes()
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "[ATTRIBUTES]"
+    )
+
+    if next(attributes) == nil then
+
+        table.insert(
+            lines,
+            "  <none>"
+        )
+
+    else
+
+        for name, value in pairs(
+            attributes
+        ) do
+
+            table.insert(
+                lines,
+                "  " ..
+                name ..
+                " = " ..
+                formatValue(value)
+            )
+
+        end
+
+    end
+
+    --------------------------------------------------
+    -- DIRECT CHILDREN
+    --------------------------------------------------
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "[DIRECT CHILDREN]"
+    )
+
+    local children =
+        instance:GetChildren()
+
+    if #children == 0 then
+
+        table.insert(
+            lines,
+            "  <none>"
+        )
+
+    else
+
+        for _, child in ipairs(
+            children
+        ) do
+
+            table.insert(
+                lines,
+                "  " ..
+                child.Name ..
+                " [" ..
+                child.ClassName ..
+                "]"
+            )
+
+        end
+
+    end
+
+    --------------------------------------------------
+    -- VALUE OBJECTS
+    --------------------------------------------------
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "[VALUE OBJECTS]"
+    )
+
+    local foundValues = false
+
+    for _, descendant in ipairs(
+        instance:GetDescendants()
+    ) do
+
+        if descendant:IsA("ValueBase") then
+
+            foundValues = true
+
+            table.insert(
+                lines,
+                "  " ..
+                descendant:GetFullName() ..
+                " = " ..
+                formatValue(
+                    descendant.Value
+                )
+            )
+
+        end
+
+    end
+
+    if not foundValues then
+
+        table.insert(
+            lines,
+            "  <none>"
+        )
+
+    end
+
+    --------------------------------------------------
+    -- PROMPTS
+    --------------------------------------------------
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "[INTERACTION OBJECTS]"
+    )
+
+    local foundInteraction =
+        false
+
+    for _, descendant in ipairs(
+        instance:GetDescendants()
+    ) do
+
+        if descendant:IsA(
+            "ProximityPrompt"
+        )
+        or descendant:IsA(
+            "ClickDetector"
+        ) then
+
+            foundInteraction = true
+
+            table.insert(
+                lines,
+                "  " ..
+                descendant:GetFullName()
+            )
+
+            if descendant:IsA(
+                "ProximityPrompt"
+            ) then
+
+                table.insert(
+                    lines,
+                    "     ActionText = " ..
+                    descendant.ActionText
+                )
+
+                table.insert(
+                    lines,
+                    "     ObjectText = " ..
+                    descendant.ObjectText
+                )
+
+                table.insert(
+                    lines,
+                    "     HoldDuration = " ..
+                    tostring(
+                        descendant.HoldDuration
+                    )
+                )
+
+            end
+
+        end
+
+    end
+
+    if not foundInteraction then
+
+        table.insert(
+            lines,
+            "  <none>"
+        )
+
+    end
+
+    --------------------------------------------------
+    -- HUMANOID
+    --------------------------------------------------
+
+    local humanoid =
+        instance:FindFirstChildWhichIsA(
+            "Humanoid",
+            true
+        )
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "[HUMANOID]"
+    )
+
+    if humanoid then
+
+        table.insert(
+            lines,
+            "  Path = " ..
+            humanoid:GetFullName()
+        )
+
+        table.insert(
+            lines,
+            "  Health = " ..
+            tostring(
+                humanoid.Health
+            )
+        )
+
+        table.insert(
+            lines,
+            "  MaxHealth = " ..
+            tostring(
+                humanoid.MaxHealth
+            )
+        )
+
+    else
+
+        table.insert(
+            lines,
+            "  <none>"
+        )
+
+    end
+
+    --------------------------------------------------
+    -- BASEPARTS
+    --------------------------------------------------
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "[BASEPARTS]"
+    )
+
+    local partCount = 0
+
+    for _, descendant in ipairs(
+        instance:GetDescendants()
+    ) do
+
+        if descendant:IsA("BasePart") then
+
+            partCount += 1
+
+            if partCount <= 40 then
+
+                table.insert(
+                    lines,
+                    "  " ..
+                    descendant:GetFullName()
+                )
+
+            end
+
+        end
+
+    end
+
+    if partCount == 0 then
+
+        table.insert(
+            lines,
+            "  <none>"
+        )
+
+    elseif partCount > 40 then
+
+        table.insert(
+            lines,
+            "  ... +" ..
+            tostring(
+                partCount - 40
+            ) ..
+            " more"
+        )
+
+    end
+
+    --------------------------------------------------
+    -- REMOTE / BINDABLE OBJECTS
+    --------------------------------------------------
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "[EVENT / REMOTE OBJECTS]"
+    )
+
+    local foundRemote = false
+
+    for _, descendant in ipairs(
+        instance:GetDescendants()
+    ) do
+
+        if descendant:IsA(
+            "RemoteEvent"
+        )
+        or descendant:IsA(
+            "RemoteFunction"
+        )
+        or descendant:IsA(
+            "BindableEvent"
+        )
+        or descendant:IsA(
+            "BindableFunction"
+        ) then
+
+            foundRemote = true
+
+            table.insert(
+                lines,
+                "  " ..
+                descendant:GetFullName() ..
+                " [" ..
+                descendant.ClassName ..
+                "]"
+            )
+
+        end
+
+    end
+
+    if not foundRemote then
+
+        table.insert(
+            lines,
+            "  <none>"
+        )
+
+    end
+
+    outputText.Text =
+        table.concat(
+            lines,
+            "\n"
+        )
+
+    status.Text =
+        "Inspecting: " ..
+        instance.Name
+
+end
+
+--------------------------------------------------
+-- SNAPSHOT
+--------------------------------------------------
+
+local snapshot = nil
+
+local function captureSnapshot()
+
+    if not eggResults[1] then
+
+        status.Text =
+            "Scan first."
+
+        return
+
+    end
+
+    local object =
+        eggResults[1].instance
+
+    if not object.Parent then
+
+        status.Text =
+            "Egg no longer exists."
+
+        return
+
+    end
+
+    snapshot = {
+        path = object:GetFullName(),
+        name = object.Name,
+        class = object.ClassName,
+        attributes = object:GetAttributes(),
+        children = {},
+        values = {},
+    }
+
+    for _, child in ipairs(
+        object:GetChildren()
+    ) do
+
+        snapshot.children[
+            child.Name
+        ] = child.ClassName
+
+    end
+
+    for _, descendant in ipairs(
+        object:GetDescendants()
+    ) do
+
+        if descendant:IsA(
+            "ValueBase"
+        ) then
+
+            snapshot.values[
+                descendant:GetFullName()
+            ] =
+                formatValue(
+                    descendant.Value
+                )
+
+        end
+
+    end
+
+    local humanoid =
+        object:FindFirstChildWhichIsA(
+            "Humanoid",
+            true
+        )
+
+    if humanoid then
+
+        snapshot.health =
+            humanoid.Health
+
+        snapshot.maxHealth =
+            humanoid.MaxHealth
+
+    end
+
+    status.Text =
+        "Snapshot saved for #1"
+
+end
+
+--------------------------------------------------
+-- COMPARE
+--------------------------------------------------
+
+local function compareSnapshot()
+
+    if not snapshot then
+
+        status.Text =
+            "No snapshot exists."
+
+        return
+
+    end
+
+    local lines = {}
+
+    table.insert(
+        lines,
+        "=========================================="
+    )
+
+    table.insert(
+        lines,
+        "BEFORE / AFTER COMPARISON"
+    )
+
+    table.insert(
+        lines,
+        "=========================================="
+    )
+
+    local current =
+        workspace:FindFirstChild(
+            snapshot.name,
+            true
+        )
+
+    if not current then
+
+        table.insert(
+            lines,
+            ""
+        )
+
+        table.insert(
+            lines,
+            "OBJECT NO LONGER FOUND."
+        )
+
+        table.insert(
+            lines,
+            ""
+        )
+
+        table.insert(
+            lines,
+            "Possible disappearance/destruction."
+        )
+
+        outputText.Text =
+            table.concat(
+                lines,
+                "\n"
+            )
+
+        status.Text =
+            "Object disappeared"
+
+        return
+    end
+
+    local changes = 0
+
+    --------------------------------------------------
+    -- ATTRIBUTES
+    --------------------------------------------------
+
+    local currentAttributes =
+        current:GetAttributes()
+
+    for name, oldValue in pairs(
+        snapshot.attributes
+    ) do
+
+        local newValue =
+            currentAttributes[name]
+
+        if tostring(oldValue) ~=
+           tostring(newValue) then
+
+            changes += 1
+
+            table.insert(
+                lines,
+                ""
+            )
+
+            table.insert(
+                lines,
+                "[ATTRIBUTE CHANGED]"
+            )
+
+            table.insert(
+                lines,
+                name ..
+                " : " ..
+                formatValue(oldValue) ..
+                " -> " ..
+                formatValue(newValue)
+            )
+
+        end
+
+    end
+
+    for name, newValue in pairs(
+        currentAttributes
+    ) do
+
+        if snapshot.attributes[name] == nil then
+
+            changes += 1
+
+            table.insert(
+                lines,
+                ""
+            )
+
+            table.insert(
+                lines,
+                "[NEW ATTRIBUTE]"
+            )
+
+            table.insert(
+                lines,
+                name ..
+                " = " ..
+                formatValue(newValue)
+            )
+
+        end
+
+    end
+
+    --------------------------------------------------
+    -- HUMANOID
+    --------------------------------------------------
+
+    local humanoid =
+        current:FindFirstChildWhichIsA(
+            "Humanoid",
+            true
+        )
+
+    if humanoid and snapshot.health then
+
+        if humanoid.Health ~=
+           snapshot.health then
+
+            changes += 1
+
+            table.insert(
+                lines,
+                ""
+            )
+
+            table.insert(
+                lines,
+                "[HEALTH CHANGED]"
+            )
+
+            table.insert(
+                lines,
+                tostring(
+                    snapshot.health
+                ) ..
+                " -> " ..
+                tostring(
+                    humanoid.Health
+                )
+            )
+
+        end
+
+    end
+
+    --------------------------------------------------
+    -- CHILDREN
+    --------------------------------------------------
+
+    local currentChildren = {}
+
+    for _, child in ipairs(
+        current:GetChildren()
+    ) do
+
+        currentChildren[
+            child.Name
+        ] = child.ClassName
+
+    end
+
+    for name, class in pairs(
+        currentChildren
+    ) do
+
+        if snapshot.children[name] == nil then
+
+            changes += 1
+
+            table.insert(
+                lines,
+                ""
+            )
+
+            table.insert(
+                lines,
+                "[NEW CHILD]"
+            )
+
+            table.insert(
+                lines,
+                name ..
+                " [" ..
+                class ..
+                "]"
+            )
+
+        end
+
+    end
+
+    for name, class in pairs(
+        snapshot.children
+    ) do
+
+        if currentChildren[name] == nil then
+
+            changes += 1
+
+            table.insert(
+                lines,
+                ""
+            )
+
+            table.insert(
+                lines,
+                "[REMOVED CHILD]"
+            )
+
+            table.insert(
+                lines,
+                name ..
+                " [" ..
+                class ..
+                "]"
+            )
+
+        end
+
+    end
+
+    --------------------------------------------------
+    -- RESULT
+    --------------------------------------------------
+
+    table.insert(
+        lines,
+        ""
+    )
+
+    table.insert(
+        lines,
+        "=========================================="
+    )
+
+    table.insert(
+        lines,
+        "TOTAL CHANGES: " ..
+        tostring(changes)
+    )
+
+    table.insert(
+        lines,
+        "=========================================="
+    )
+
+    if changes == 0 then
+
+        table.insert(
+            lines,
+            ""
+        )
+
+        table.insert(
+            lines,
+            "No tracked changes."
+        )
+
+    end
+
+    outputText.Text =
+        table.concat(
+            lines,
+            "\n"
+        )
+
+    status.Text =
+        "Comparison complete"
+
+end
+
+--------------------------------------------------
+-- CLEAR
+--------------------------------------------------
+
+local function clear()
+
+    eggResults = {}
+    snapshot = nil
+
+    outputText.Text =
+        "EGG RECON v1\n\nReady."
+
+    status.Text =
+        "Cleared"
+
+end
+
+--------------------------------------------------
+-- BUTTON EVENTS
+--------------------------------------------------
+
+scanButton.MouseButton1Click:Connect(
+    scanEggs
+)
+
+inspectButton.MouseButton1Click:Connect(
+    function()
+
+        if eggResults[1] then
+
+            inspectObject(
+                eggResults[1].instance
+            )
+
+        else
+
+            status.Text =
+                "Scan first."
+
+        end
+
+    end
+)
+
+snapshotButton.MouseButton1Click:Connect(
+    captureSnapshot
+)
+
+compareButton.MouseButton1Click:Connect(
+    compareSnapshot
+)
+
+clearButton.MouseButton1Click:Connect(
+    clear
+)
+
+--------------------------------------------------
+-- NEW EGG-RELATED OBJECT LOGGER
+--------------------------------------------------
+
+workspace.DescendantAdded:Connect(
+    function(instance)
+
+        if not isEggName(
+            instance.Name
+        ) then
+            return
+        end
+
+        local distance =
+            getDistance(instance)
+
+        if distance > SCAN_RADIUS then
+            return
+        end
+
+        print(
+            "========== EGG RECON: NEW OBJECT =========="
+        )
+
+        print(
+            "Name:",
+            instance.Name
+        )
+
+        print(
+            "Class:",
+            instance.ClassName
+        )
+
+        print(
+            "Path:",
+            instance:GetFullName()
+        )
+
+        print(
+            "Distance:",
+            distance
+        )
+
+        local attributes =
+            instance:GetAttributes()
+
+        for name, value in pairs(
+            attributes
+        ) do
+
+            print(
+                "Attribute:",
+                name,
+                "=",
+                formatValue(value)
+            )
+
+        end
+
+    end
+)
+
+--------------------------------------------------
+-- START
+--------------------------------------------------
+
+outputText.Text =
+    "EGG RECON v1\n\n" ..
+    "READ-ONLY MODE\n\n" ..
+    "1. Click SCAN EGGS.\n" ..
+    "2. Click INSPECT #1.\n" ..
+    "3. Look at the object's hierarchy.\n" ..
+    "4. Click SNAPSHOT.\n" ..
+    "5. Manually interact with the egg.\n" ..
+    "6. Click COMPARE.\n" ..
+    "7. Send me the output.\n\n" ..
+    "The script does not invoke any interaction."
+
+status.Text =
+    "Ready"
