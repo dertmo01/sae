@@ -13,6 +13,7 @@ local PlaceId = game.PlaceId
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "PrivateServerBypassGUI"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 if syn and syn.protect_gui then
     syn.protect_gui(ScreenGui)
@@ -24,246 +25,773 @@ else
 end
 
 -- ==============================
--- Frame sizes — easy to tweak
+-- Colors
 -- ==============================
 
-local BUBBLE_W  = 320
-local BUBBLE_H  = 260  -- tall enough for all content
-local HEADER_H  = 44
+local C = {
+    bg          = Color3.fromRGB(14, 14, 26),
+    panel       = Color3.fromRGB(20, 20, 36),
+    sidebar     = Color3.fromRGB(16, 16, 30),
+    card        = Color3.fromRGB(26, 26, 44),
+    cardDark    = Color3.fromRGB(20, 20, 38),
+    accent      = Color3.fromRGB(100, 60, 210),
+    accentHov   = Color3.fromRGB(120, 80, 230),
+    purple      = Color3.fromRGB(110, 50, 200),
+    purpleLight = Color3.fromRGB(140, 80, 230),
+    green       = Color3.fromRGB(50, 200, 100),
+    greenBtn    = Color3.fromRGB(30, 150, 70),
+    blue        = Color3.fromRGB(55, 90, 210),
+    red         = Color3.fromRGB(200, 50, 50),
+    orange      = Color3.fromRGB(220, 130, 30),
+    text        = Color3.fromRGB(230, 230, 240),
+    textDim     = Color3.fromRGB(140, 140, 170),
+    textMuted   = Color3.fromRGB(85, 85, 120),
+    stroke      = Color3.fromRGB(70, 50, 140),
+    strokeDim   = Color3.fromRGB(40, 40, 70),
+    hopBtn      = Color3.fromRGB(90, 40, 200),
+    hopBtnEnd   = Color3.fromRGB(130, 50, 220),
+    navActive   = Color3.fromRGB(100, 60, 210),
+    navBg       = Color3.fromRGB(18, 18, 32),
+    inputBg     = Color3.fromRGB(24, 24, 42),
+    toggleOn    = Color3.fromRGB(100, 60, 210),
+    toggleOff   = Color3.fromRGB(50, 50, 80),
+}
 
 -- ==============================
--- Main bubble frame
+-- Helpers
+-- ==============================
+
+local function corner(parent, radius)
+    local c = Instance.new("UICorner", parent)
+    c.CornerRadius = UDim.new(0, radius or 10)
+    return c
+end
+
+local function stroke(parent, color, thick, trans)
+    local s = Instance.new("UIStroke", parent)
+    s.Color = color or C.stroke
+    s.Thickness = thick or 1.5
+    s.Transparency = trans or 0
+    return s
+end
+
+local function label(parent, props)
+    local l = Instance.new("TextLabel", parent)
+    l.BackgroundTransparency = 1
+    l.Font = props.font or Enum.Font.Gotham
+    l.TextSize = props.size or 12
+    l.TextColor3 = props.color or C.text
+    l.Text = props.text or ""
+    l.TextXAlignment = props.xalign or Enum.TextXAlignment.Left
+    l.TextYAlignment = props.yalign or Enum.TextYAlignment.Center
+    l.TextWrapped = props.wrap or false
+    l.Size = props.sz or UDim2.new(1, 0, 0, 20)
+    l.Position = props.pos or UDim2.new(0, 0, 0, 0)
+    return l
+end
+
+local function frame(parent, props)
+    local f = Instance.new("Frame", parent)
+    f.BackgroundColor3 = props.bg or C.panel
+    f.BorderSizePixel = 0
+    f.Size = props.sz or UDim2.new(1, 0, 0, 40)
+    f.Position = props.pos or UDim2.new(0, 0, 0, 0)
+    if props.clip then f.ClipsDescendants = true end
+    if props.radius then corner(f, props.radius) end
+    if props.trans then f.BackgroundTransparency = props.trans end
+    return f
+end
+
+local function btn(parent, props)
+    local b = Instance.new("TextButton", parent)
+    b.BackgroundColor3 = props.bg or C.accent
+    b.BorderSizePixel = 0
+    b.Font = props.font or Enum.Font.GothamBold
+    b.TextSize = props.size or 12
+    b.TextColor3 = props.color or C.text
+    b.Text = props.text or ""
+    b.AutoButtonColor = false
+    b.Size = props.sz or UDim2.new(0, 80, 0, 30)
+    b.Position = props.pos or UDim2.new(0, 0, 0, 0)
+    if props.radius then corner(b, props.radius) end
+    return b
+end
+
+-- Hover tween helper
+local function hoverBtn(b, normal, hover)
+    b.MouseEnter:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = hover}):Play()
+    end)
+    b.MouseLeave:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.15), {BackgroundColor3 = normal}):Play()
+    end)
+end
+
+-- ==============================
+-- FLOATING BUBBLE (minimized state)
 -- ==============================
 
 local Bubble = Instance.new("Frame")
-Bubble.Name = "ChatBubble"
+Bubble.Name = "FloatingBubble"
 Bubble.Parent = ScreenGui
-Bubble.BackgroundColor3 = Color3.fromRGB(22, 22, 36)
+Bubble.BackgroundColor3 = C.panel
 Bubble.BorderSizePixel = 0
-Bubble.AnchorPoint = Vector2.new(0.5, 0.5)
-Bubble.Position = UDim2.new(0.5, 0, 0.5, 0)  -- dead center
-Bubble.Size = UDim2.new(0, BUBBLE_W, 0, 0)    -- starts at 0 for pop-in
-Bubble.ClipsDescendants = true
+Bubble.AnchorPoint = Vector2.new(0, 1)
+Bubble.Position = UDim2.new(0, 24, 1, -24)
+Bubble.Size = UDim2.new(0, 180, 0, 54)
 Bubble.Active = true
 Bubble.Draggable = true
-Instance.new("UICorner", Bubble).CornerRadius = UDim.new(0, 14)
+corner(Bubble, 28)
+stroke(Bubble, C.stroke, 1.5, 0)
 
-local Stroke = Instance.new("UIStroke", Bubble)
-Stroke.Color = Color3.fromRGB(90, 70, 160)
-Stroke.Thickness = 1.5
-Stroke.Transparency = 0.2
+-- Bubble gradient border glow
+local BubbleGrad = Instance.new("UIGradient", Instance.new("UIStroke", Bubble))
+
+-- Avatar circle
+local BubbleAv = frame(Bubble, {bg = C.purple, sz = UDim2.new(0, 36, 0, 36), pos = UDim2.new(0, 9, 0.5, -18)})
+corner(BubbleAv, 18)
+local BubbleAvLbl = label(BubbleAv, {text = "M", font = Enum.Font.GothamBold, size = 16, color = C.text,
+    sz = UDim2.new(1, 0, 1, 0), xalign = Enum.TextXAlignment.Center})
+
+-- Name
+local BubbleName = label(Bubble, {text = LocalPlayer.DisplayName or LocalPlayer.Name,
+    font = Enum.Font.GothamBold, size = 13, color = C.text,
+    sz = UDim2.new(0, 110, 0, 18), pos = UDim2.new(0, 52, 0, 8)})
+
+-- Status dot + count
+local BubbleStatusRow = frame(Bubble, {bg = C.panel, sz = UDim2.new(0, 110, 0, 14), pos = UDim2.new(0, 52, 0, 28), trans = 1})
+local BubbleDot = frame(BubbleStatusRow, {bg = C.green, sz = UDim2.new(0, 8, 0, 8), pos = UDim2.new(0, 0, 0.5, -4)})
+corner(BubbleDot, 4)
+local BubbleCount = label(BubbleStatusRow, {text = "0/50", font = Enum.Font.Gotham, size = 11, color = C.textDim,
+    sz = UDim2.new(0, 90, 1, 0), pos = UDim2.new(0, 12, 0, 0)})
 
 -- ==============================
--- Header bar
+-- MAIN PANEL
 -- ==============================
 
-local Header = Instance.new("Frame", Bubble)
-Header.Size = UDim2.new(1, 0, 0, HEADER_H)
-Header.Position = UDim2.new(0, 0, 0, 0)
-Header.BackgroundColor3 = Color3.fromRGB(32, 32, 52)
-Header.BorderSizePixel = 0
-Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 14)
+local PANEL_W = 540
+local PANEL_H = 380
+local SIDEBAR_W = 130
 
--- square off the bottom of the header so it blends into body
-local HFill = Instance.new("Frame", Header)
-HFill.Size = UDim2.new(1, 0, 0.5, 0)
-HFill.Position = UDim2.new(0, 0, 0.5, 0)
-HFill.BackgroundColor3 = Color3.fromRGB(32, 32, 52)
-HFill.BorderSizePixel = 0
+local MainPanel = frame(ScreenGui, {bg = C.bg, sz = UDim2.new(0, PANEL_W, 0, PANEL_H),
+    pos = UDim2.new(0.5, -PANEL_W/2, 0.5, -PANEL_H/2), clip = true, radius = 14})
+stroke(MainPanel, C.stroke, 1.5, 0)
+MainPanel.Visible = false
+MainPanel.ZIndex = 10
 
--- Avatar dot
-local Av = Instance.new("Frame", Header)
-Av.Size = UDim2.new(0, 28, 0, 28)
-Av.Position = UDim2.new(0, 10, 0.5, -14)
-Av.BackgroundColor3 = Color3.fromRGB(110, 50, 200)
-Av.BorderSizePixel = 0
-Instance.new("UICorner", Av).CornerRadius = UDim.new(1, 0)
+-- Panel shadow layer
+local PanelShadow = frame(ScreenGui, {bg = Color3.fromRGB(0,0,0), sz = UDim2.new(0, PANEL_W+20, 0, PANEL_H+20),
+    pos = UDim2.new(0.5, -(PANEL_W+20)/2, 0.5, -(PANEL_H+20)/2), trans = 0.6, radius = 18})
+PanelShadow.ZIndex = 9
+PanelShadow.Visible = false
 
-local AvLbl = Instance.new("TextLabel", Av)
-AvLbl.Size = UDim2.new(1, 0, 1, 0)
-AvLbl.BackgroundTransparency = 1
-AvLbl.Font = Enum.Font.GothamBold
-AvLbl.Text = "M"
-AvLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-AvLbl.TextSize = 14
+-- ==============================
+-- Panel Header
+-- ==============================
+
+local PanelHeader = frame(MainPanel, {bg = C.panel, sz = UDim2.new(1, 0, 0, 52)})
+
+-- Avatar
+local PAv = frame(PanelHeader, {bg = C.purple, sz = UDim2.new(0, 34, 0, 34), pos = UDim2.new(0, 14, 0.5, -17)})
+corner(PAv, 17)
+label(PAv, {text = "M", font = Enum.Font.GothamBold, size = 15, color = C.text,
+    sz = UDim2.new(1, 0, 1, 0), xalign = Enum.TextXAlignment.Center})
 
 -- Title
-local TitleLbl = Instance.new("TextLabel", Header)
-TitleLbl.Size = UDim2.new(0, 140, 0, 18)
-TitleLbl.Position = UDim2.new(0, 46, 0, 6)
-TitleLbl.BackgroundTransparency = 1
-TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.Text = "Server Bypass"
-TitleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLbl.TextSize = 13
-TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+label(PanelHeader, {text = "Moderate", font = Enum.Font.GothamBold, size = 14, color = C.text,
+    sz = UDim2.new(0, 160, 0, 20), pos = UDim2.new(0, 56, 0, 8)})
+label(PanelHeader, {text = "Private Server Bypass", font = Enum.Font.Gotham, size = 11, color = C.textDim,
+    sz = UDim2.new(0, 160, 0, 14), pos = UDim2.new(0, 56, 0, 28)})
 
-local SubLbl = Instance.new("TextLabel", Header)
-SubLbl.Size = UDim2.new(0, 140, 0, 13)
-SubLbl.Position = UDim2.new(0, 46, 0, 25)
-SubLbl.BackgroundTransparency = 1
-SubLbl.Font = Enum.Font.Gotham
-SubLbl.Text = "Mochii Scripts"
-SubLbl.TextColor3 = Color3.fromRGB(115, 115, 160)
-SubLbl.TextSize = 10
-SubLbl.TextXAlignment = Enum.TextXAlignment.Left
+-- Header buttons
+local PMinBtn = btn(PanelHeader, {bg = Color3.fromRGB(50, 50, 78), text = "—",
+    font = Enum.Font.GothamBold, size = 11, color = C.textDim,
+    sz = UDim2.new(0, 24, 0, 24), pos = UDim2.new(1, -56, 0.5, -12), radius = 12})
 
--- Minimize (—)
-local MinBtn = Instance.new("TextButton", Header)
-MinBtn.Size = UDim2.new(0, 22, 0, 22)
-MinBtn.Position = UDim2.new(1, -52, 0.5, -11)
-MinBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 85)
-MinBtn.BorderSizePixel = 0
-MinBtn.Font = Enum.Font.GothamBold
-MinBtn.Text = "—"
-MinBtn.TextColor3 = Color3.fromRGB(220, 220, 220)
-MinBtn.TextSize = 12
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(1, 0)
+local PCloseBtn = btn(PanelHeader, {bg = C.red, text = "✕",
+    font = Enum.Font.GothamBold, size = 10, color = C.text,
+    sz = UDim2.new(0, 24, 0, 24), pos = UDim2.new(1, -28, 0.5, -12), radius = 12})
 
--- Close (✕)
-local CloseBtn = Instance.new("TextButton", Header)
-CloseBtn.Size = UDim2.new(0, 22, 0, 22)
-CloseBtn.Position = UDim2.new(1, -26, 0.5, -11)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseBtn.BorderSizePixel = 0
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Text = "✕"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseBtn.TextSize = 11
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
+hoverBtn(PMinBtn, Color3.fromRGB(50, 50, 78), Color3.fromRGB(70, 70, 100))
+hoverBtn(PCloseBtn, C.red, Color3.fromRGB(230, 70, 70))
 
-CloseBtn.MouseButton1Click:Connect(function()
-    TweenService:Create(Bubble, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
-        Size = UDim2.new(0, BUBBLE_W, 0, 0)
+-- Divider
+local HeaderDiv = frame(MainPanel, {bg = C.strokeDim, sz = UDim2.new(1, 0, 0, 1), pos = UDim2.new(0, 0, 0, 52)})
+
+-- ==============================
+-- Sidebar
+-- ==============================
+
+local Sidebar = frame(MainPanel, {bg = C.sidebar, sz = UDim2.new(0, SIDEBAR_W, 1, -53), pos = UDim2.new(0, 0, 0, 53)})
+
+-- Nav items: {icon, label, id}
+local NAV_ITEMS = {
+    {icon = "⌂", text = "Home",   id = "home"},
+    {icon = "⚙", text = "Config", id = "config"},
+    {icon = "≡", text = "Logs",   id = "logs"},
+    {icon = "i", text = "About",  id = "about"},
+}
+
+local navBtns = {}
+local currentPage = "home"
+
+local function makeNavBtn(idx, data)
+    local yOff = (idx - 1) * 46 + 12
+
+    local nb = btn(Sidebar, {bg = Color3.fromRGB(0,0,0), text = "",
+        sz = UDim2.new(1, -16, 0, 38), pos = UDim2.new(0, 8, 0, yOff), radius = 9})
+    nb.BackgroundTransparency = 1
+    nb.AutoButtonColor = false
+
+    local activeBar = frame(nb, {bg = C.accent, sz = UDim2.new(0, 3, 0, 22), pos = UDim2.new(0, 0, 0.5, -11), radius = 2})
+    activeBar.Visible = false
+
+    local iconLbl = label(nb, {text = data.icon, font = Enum.Font.GothamBold, size = 14, color = C.textDim,
+        sz = UDim2.new(0, 24, 1, 0), pos = UDim2.new(0, 10, 0, 0), xalign = Enum.TextXAlignment.Center})
+
+    local textLbl = label(nb, {text = data.text, font = Enum.Font.Gotham, size = 12, color = C.textDim,
+        sz = UDim2.new(0, 70, 1, 0), pos = UDim2.new(0, 38, 0, 0)})
+
+    navBtns[data.id] = {btn = nb, bar = activeBar, icon = iconLbl, lbl = textLbl}
+    return nb
+end
+
+for i, nav in ipairs(NAV_ITEMS) do
+    makeNavBtn(i, nav)
+end
+
+local SideDiv = frame(Sidebar, {bg = C.strokeDim, sz = UDim2.new(0, 1, 1, 0), pos = UDim2.new(1, 0, 0, 0)})
+
+-- ==============================
+-- Content area
+-- ==============================
+
+local ContentArea = frame(MainPanel, {bg = C.bg,
+    sz = UDim2.new(0, PANEL_W - SIDEBAR_W - 1, 1, -53),
+    pos = UDim2.new(0, SIDEBAR_W + 1, 0, 53), clip = true})
+
+-- ==============================
+-- PAGE: HOME
+-- ==============================
+
+local HomePage = frame(ContentArea, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, 0, 1, 0), trans = 1})
+HomePage.Visible = true
+
+local HP_PAD = 14
+local hp_y = 0  -- running Y cursor inside HomePage
+
+-- SERVER STATUS card
+local SSCard = frame(HomePage, {bg = C.card,
+    sz = UDim2.new(1, -HP_PAD*2, 0, 84),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD), radius = 10})
+stroke(SSCard, C.strokeDim, 1, 0)
+
+-- Card header row
+local SSHeader = frame(SSCard, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, 0, 0, 32), trans = 1})
+
+label(SSCard, {text = "⚡  SERVER STATUS", font = Enum.Font.GothamBold, size = 11,
+    color = C.textDim, sz = UDim2.new(0, 160, 0, 32), pos = UDim2.new(0, 12, 0, 0),
+    xalign = Enum.TextXAlignment.Left})
+
+-- Live badge
+local LiveBadge = frame(SSCard, {bg = Color3.fromRGB(20, 60, 30),
+    sz = UDim2.new(0, 52, 0, 20), pos = UDim2.new(1, -62, 0, 8), radius = 10})
+local LiveDot = frame(LiveBadge, {bg = C.green, sz = UDim2.new(0, 7, 0, 7), pos = UDim2.new(0, 8, 0.5, -3)})
+corner(LiveDot, 4)
+label(LiveBadge, {text = "Live", font = Enum.Font.GothamBold, size = 10, color = C.green,
+    sz = UDim2.new(0, 30, 1, 0), pos = UDim2.new(0, 18, 0, 0)})
+
+-- Divider in card
+local SSDivider = frame(SSCard, {bg = C.strokeDim, sz = UDim2.new(1, -24, 0, 1), pos = UDim2.new(0, 12, 0, 32)})
+
+-- Player count row
+local PCIcon = frame(SSCard, {bg = C.cardDark, sz = UDim2.new(0, 26, 0, 26), pos = UDim2.new(0, 12, 0, 40), radius = 6})
+label(PCIcon, {text = "👥", sz = UDim2.new(1, 0, 1, 0), size = 12, xalign = Enum.TextXAlignment.Center})
+
+local PlayerCountLbl = label(SSCard, {text = "0 / 50", font = Enum.Font.GothamBold, size = 12, color = C.text,
+    sz = UDim2.new(0, 80, 0, 14), pos = UDim2.new(0, 46, 0, 40)})
+label(SSCard, {text = "Players in this server", font = Enum.Font.Gotham, size = 10, color = C.textMuted,
+    sz = UDim2.new(0, 140, 0, 12), pos = UDim2.new(0, 46, 0, 56)})
+
+-- STATUS row
+local StatusCard = frame(HomePage, {bg = C.card,
+    sz = UDim2.new(1, -HP_PAD*2, 0, 46),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD + 84 + 8), radius = 10})
+stroke(StatusCard, C.strokeDim, 1, 0)
+
+local StatusDotMain = frame(StatusCard, {bg = C.green, sz = UDim2.new(0, 9, 0, 9), pos = UDim2.new(0, 12, 0.5, -4)})
+corner(StatusDotMain, 5)
+
+local StatusMainLbl = label(StatusCard, {text = "Status", font = Enum.Font.GothamBold, size = 12, color = C.text,
+    sz = UDim2.new(0, 100, 0, 16), pos = UDim2.new(0, 28, 0, 6)})
+local StatusSubLbl = label(StatusCard, {text = "Ready — set threshold and hit Join.", font = Enum.Font.Gotham,
+    size = 10, color = C.textDim, sz = UDim2.new(1, -40, 0, 13), pos = UDim2.new(0, 28, 0, 23)})
+
+-- PLAYER THRESHOLD card
+local PTCard = frame(HomePage, {bg = C.card,
+    sz = UDim2.new(1, -HP_PAD*2, 0, 72),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD + 84 + 8 + 46 + 8), radius = 10})
+stroke(PTCard, C.strokeDim, 1, 0)
+
+label(PTCard, {text = "👥  PLAYER THRESHOLD", font = Enum.Font.GothamBold, size = 10, color = C.textDim,
+    sz = UDim2.new(1, -24, 0, 26), pos = UDim2.new(0, 12, 0, 0)})
+
+-- Threshold stepper
+local ThreshBox = frame(PTCard, {bg = C.inputBg,
+    sz = UDim2.new(1, -24, 0, 32), pos = UDim2.new(0, 12, 0, 30), radius = 8})
+stroke(ThreshBox, C.strokeDim, 1, 0)
+
+local ThreshInput = Instance.new("TextBox", ThreshBox)
+ThreshInput.Size = UDim2.new(1, -72, 1, 0)
+ThreshInput.Position = UDim2.new(0, 12, 0, 0)
+ThreshInput.BackgroundTransparency = 1
+ThreshInput.Font = Enum.Font.GothamBold
+ThreshInput.Text = "3"
+ThreshInput.TextColor3 = C.text
+ThreshInput.TextSize = 14
+ThreshInput.ClearTextOnFocus = false
+ThreshInput.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Minus btn
+local MinusBtn = btn(ThreshBox, {bg = C.cardDark, text = "—", font = Enum.Font.GothamBold, size = 12,
+    color = C.textDim, sz = UDim2.new(0, 28, 0, 24), pos = UDim2.new(1, -60, 0.5, -12), radius = 6})
+hoverBtn(MinusBtn, C.cardDark, Color3.fromRGB(40, 40, 65))
+
+-- Plus btn
+local PlusBtn = btn(ThreshBox, {bg = C.accent, text = "+", font = Enum.Font.GothamBold, size = 13,
+    color = C.text, sz = UDim2.new(0, 28, 0, 24), pos = UDim2.new(1, -28, 0.5, -12), radius = 6})
+hoverBtn(PlusBtn, C.accent, C.accentHov)
+
+MinusBtn.MouseButton1Click:Connect(function()
+    local v = math.max(1, (tonumber(ThreshInput.Text) or 1) - 1)
+    ThreshInput.Text = tostring(v)
+end)
+PlusBtn.MouseButton1Click:Connect(function()
+    local v = (tonumber(ThreshInput.Text) or 1) + 1
+    ThreshInput.Text = tostring(v)
+end)
+
+-- HOP SERVER button
+local HopBtn = btn(HomePage, {bg = C.accent, text = "⚡  HOP SERVER",
+    font = Enum.Font.GothamBold, size = 14, color = C.text,
+    sz = UDim2.new(1, -HP_PAD*2, 0, 40),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD + 84 + 8 + 46 + 8 + 72 + 8),
+    radius = 10})
+hoverBtn(HopBtn, C.accent, C.accentHov)
+
+-- Gradient on HopBtn
+local HopGrad = Instance.new("UIGradient", HopBtn)
+HopGrad.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 30, 190)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(140, 60, 230)),
+}
+HopGrad.Rotation = 90
+
+-- AUTO EXECUTE toggle + action row
+local AERow = frame(HomePage, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, -HP_PAD*2, 0, 28),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD + 84 + 8 + 46 + 8 + 72 + 8 + 40 + 6),
+    trans = 1})
+
+label(AERow, {text = "AUTO EXECUTE", font = Enum.Font.Gotham, size = 10, color = C.textMuted,
+    sz = UDim2.new(0, 100, 1, 0), pos = UDim2.new(0, 0, 0, 0)})
+
+-- Toggle pill
+local TogglePill = frame(AERow, {bg = C.toggleOff,
+    sz = UDim2.new(0, 42, 0, 20), pos = UDim2.new(0, 88, 0.5, -10), radius = 10})
+local ToggleKnob = frame(TogglePill, {bg = C.text,
+    sz = UDim2.new(0, 16, 0, 16), pos = UDim2.new(0, 2, 0.5, -8), radius = 8})
+local ToggleLbl = label(AERow, {text = "ON", font = Enum.Font.GothamBold, size = 10, color = C.accent,
+    sz = UDim2.new(0, 28, 1, 0), pos = UDim2.new(0, 134, 0, 0)})
+
+local toggleState = false
+local function setToggle(on)
+    toggleState = on
+    if on then
+        TweenService:Create(TogglePill, TweenInfo.new(0.18), {BackgroundColor3 = C.toggleOn}):Play()
+        TweenService:Create(ToggleKnob, TweenInfo.new(0.18), {Position = UDim2.new(0, 24, 0.5, -8)}):Play()
+        ToggleLbl.Text = "ON"
+        ToggleLbl.TextColor3 = C.accent
+    else
+        TweenService:Create(TogglePill, TweenInfo.new(0.18), {BackgroundColor3 = C.toggleOff}):Play()
+        TweenService:Create(ToggleKnob, TweenInfo.new(0.18), {Position = UDim2.new(0, 2, 0.5, -8)}):Play()
+        ToggleLbl.Text = "OFF"
+        ToggleLbl.TextColor3 = C.textMuted
+    end
+end
+setToggle(true)
+
+local TogglePillBtn = Instance.new("TextButton", TogglePill)
+TogglePillBtn.Size = UDim2.new(1, 0, 1, 0)
+TogglePillBtn.BackgroundTransparency = 1
+TogglePillBtn.Text = ""
+TogglePillBtn.MouseButton1Click:Connect(function()
+    setToggle(not toggleState)
+end)
+
+-- Action row: Join / Auto / Rejoin
+local ActionRowY = HP_PAD + 84 + 8 + 46 + 8 + 72 + 8 + 40 + 6 + 28 + 6
+local ACT_H = 34
+local ACT_W = math.floor((PANEL_W - SIDEBAR_W - 1 - HP_PAD * 2 - 8) / 3)
+
+local JoinBtn = btn(HomePage, {bg = C.blue, text = "👤  JOIN",
+    font = Enum.Font.GothamBold, size = 12, color = C.text,
+    sz = UDim2.new(0, ACT_W, 0, ACT_H),
+    pos = UDim2.new(0, HP_PAD, 0, ActionRowY), radius = 9})
+hoverBtn(JoinBtn, C.blue, Color3.fromRGB(75, 110, 230))
+
+local AutoBtn = btn(HomePage, {bg = C.greenBtn, text = "▶  AUTO: OFF",
+    font = Enum.Font.GothamBold, size = 11, color = C.text,
+    sz = UDim2.new(0, ACT_W, 0, ACT_H),
+    pos = UDim2.new(0, HP_PAD + ACT_W + 4, 0, ActionRowY), radius = 9})
+hoverBtn(AutoBtn, C.greenBtn, Color3.fromRGB(50, 175, 90))
+
+local RejoinBtn = btn(HomePage, {bg = C.purple, text = "↩  REJOIN",
+    font = Enum.Font.GothamBold, size = 11, color = C.text,
+    sz = UDim2.new(0, ACT_W, 0, ACT_H),
+    pos = UDim2.new(0, HP_PAD + (ACT_W + 4) * 2, 0, ActionRowY), radius = 9})
+hoverBtn(RejoinBtn, C.purple, C.purpleLight)
+
+-- ==============================
+-- PAGE: CONFIG
+-- ==============================
+
+local ConfigPage = frame(ContentArea, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, 0, 1, 0), trans = 1})
+ConfigPage.Visible = false
+
+-- Config panel card
+local CFCard = frame(ConfigPage, {bg = C.card,
+    sz = UDim2.new(1, -HP_PAD*2, 1, -HP_PAD*2),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD), radius = 12})
+stroke(CFCard, C.strokeDim, 1, 0)
+
+label(CFCard, {text = "⚙  Configuration", font = Enum.Font.GothamBold, size = 13, color = C.text,
+    sz = UDim2.new(1, -48, 0, 36), pos = UDim2.new(0, 14, 0, 0)})
+
+-- Close config
+local CFCloseBtn = btn(CFCard, {bg = Color3.fromRGB(0,0,0), text = "✕",
+    font = Enum.Font.GothamBold, size = 11, color = C.textDim,
+    sz = UDim2.new(0, 24, 0, 24), pos = UDim2.new(1, -32, 0, 6), radius = 12})
+CFCloseBtn.BackgroundTransparency = 1
+
+local CFDiv = frame(CFCard, {bg = C.strokeDim, sz = UDim2.new(1, -28, 0, 1), pos = UDim2.new(0, 14, 0, 36)})
+
+-- GENERAL SETTINGS label
+label(CFCard, {text = "GENERAL SETTINGS", font = Enum.Font.GothamBold, size = 9, color = C.textMuted,
+    sz = UDim2.new(1, -28, 0, 20), pos = UDim2.new(0, 14, 0, 42)})
+
+-- Player Threshold setting
+label(CFCard, {text = "Player Threshold", font = Enum.Font.Gotham, size = 12, color = C.text,
+    sz = UDim2.new(1, -100, 0, 18), pos = UDim2.new(0, 14, 0, 64)})
+
+local CFThreshRow = frame(CFCard, {bg = C.inputBg,
+    sz = UDim2.new(0, 110, 0, 30), pos = UDim2.new(1, -124, 0, 58), radius = 8})
+stroke(CFThreshRow, C.strokeDim, 1, 0)
+
+local CFThreshInput = Instance.new("TextBox", CFThreshRow)
+CFThreshInput.Size = UDim2.new(1, -56, 1, 0)
+CFThreshInput.Position = UDim2.new(0, 8, 0, 0)
+CFThreshInput.BackgroundTransparency = 1
+CFThreshInput.Font = Enum.Font.GothamBold
+CFThreshInput.Text = "3"
+CFThreshInput.TextColor3 = C.text
+CFThreshInput.TextSize = 13
+CFThreshInput.ClearTextOnFocus = false
+
+local CFMinusBtn = btn(CFThreshRow, {bg = C.cardDark, text = "—", font = Enum.Font.GothamBold, size = 11,
+    color = C.textDim, sz = UDim2.new(0, 24, 0, 22), pos = UDim2.new(1, -52, 0.5, -11), radius = 5})
+local CFPlusBtn = btn(CFThreshRow, {bg = C.accent, text = "+", font = Enum.Font.GothamBold, size = 12,
+    color = C.text, sz = UDim2.new(0, 24, 0, 22), pos = UDim2.new(1, -26, 0.5, -11), radius = 5})
+
+CFMinusBtn.MouseButton1Click:Connect(function()
+    local v = math.max(1, (tonumber(CFThreshInput.Text) or 1) - 1)
+    CFThreshInput.Text = tostring(v)
+    ThreshInput.Text = CFThreshInput.Text
+end)
+CFPlusBtn.MouseButton1Click:Connect(function()
+    local v = (tonumber(CFThreshInput.Text) or 1) + 1
+    CFThreshInput.Text = tostring(v)
+    ThreshInput.Text = CFThreshInput.Text
+end)
+
+-- Sync config <-> main threshold
+ThreshInput:GetPropertyChangedSignal("Text"):Connect(function()
+    CFThreshInput.Text = ThreshInput.Text
+end)
+
+-- Auto Mode toggle
+local AMRow = frame(CFCard, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, -28, 0, 38), pos = UDim2.new(0, 14, 0, 96), trans = 1})
+
+local AMLabel = label(AMRow, {text = "Auto Mode", font = Enum.Font.GothamBold, size = 12, color = C.text,
+    sz = UDim2.new(0, 120, 0, 18), pos = UDim2.new(0, 0, 0, 0)})
+-- asterisk
+label(AMRow, {text = "●", font = Enum.Font.GothamBold, size = 8, color = C.green,
+    sz = UDim2.new(0, 10, 0, 10), pos = UDim2.new(0, 82, 0, 2)})
+label(AMRow, {text = "Automatically hop when players exceed threshold.", font = Enum.Font.Gotham,
+    size = 9, color = C.textMuted, sz = UDim2.new(1, 0, 0, 14), pos = UDim2.new(0, 0, 0, 20), wrap = true})
+
+-- Mini toggle ON
+local AMToggle = frame(AMRow, {bg = C.toggleOn,
+    sz = UDim2.new(0, 36, 0, 18), pos = UDim2.new(1, -44, 0, 2), radius = 9})
+local AMKnob = frame(AMToggle, {bg = C.text, sz = UDim2.new(0, 14, 0, 14), pos = UDim2.new(1, -16, 0.5, -7), radius = 7})
+label(AMToggle, {text = "ON", font = Enum.Font.GothamBold, size = 7, color = C.text,
+    sz = UDim2.new(0, 18, 1, 0), pos = UDim2.new(0, 2, 0, 0), xalign = Enum.TextXAlignment.Center})
+
+-- Rejoin toggle row
+local RJRow = frame(CFCard, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, -28, 0, 38), pos = UDim2.new(0, 14, 0, 138), trans = 1})
+
+label(RJRow, {text = "Rejoin", font = Enum.Font.GothamBold, size = 12, color = C.text,
+    sz = UDim2.new(0, 80, 0, 18)})
+label(RJRow, {text = "Rejoin the same server after hopping.", font = Enum.Font.Gotham,
+    size = 9, color = C.textMuted, sz = UDim2.new(1, 0, 0, 14), pos = UDim2.new(0, 0, 0, 20)})
+
+local RJToggle = frame(RJRow, {bg = C.toggleOff,
+    sz = UDim2.new(0, 36, 0, 18), pos = UDim2.new(1, -44, 0, 2), radius = 9})
+local RJKnob = frame(RJToggle, {bg = C.text, sz = UDim2.new(0, 14, 0, 14), pos = UDim2.new(0, 2, 0.5, -7), radius = 7})
+label(RJToggle, {text = "OFF", font = Enum.Font.GothamBold, size = 7, color = C.textMuted,
+    sz = UDim2.new(0, 20, 1, 0), pos = UDim2.new(1, -22, 0, 0), xalign = Enum.TextXAlignment.Center})
+
+-- Divider
+local CFDiv2 = frame(CFCard, {bg = C.strokeDim, sz = UDim2.new(1, -28, 0, 1), pos = UDim2.new(0, 14, 0, 180)})
+
+-- CONFIG MANAGEMENT
+label(CFCard, {text = "CONFIG MANAGEMENT", font = Enum.Font.GothamBold, size = 9, color = C.textMuted,
+    sz = UDim2.new(1, -28, 0, 20), pos = UDim2.new(0, 14, 0, 186)})
+
+-- Dropdown
+local DropBg = frame(CFCard, {bg = C.inputBg,
+    sz = UDim2.new(1, -28, 0, 32), pos = UDim2.new(0, 14, 0, 208), radius = 8})
+stroke(DropBg, C.strokeDim, 1, 0)
+label(DropBg, {text = "Default", font = Enum.Font.Gotham, size = 12, color = C.text,
+    sz = UDim2.new(1, -30, 1, 0), pos = UDim2.new(0, 10, 0, 0)})
+label(DropBg, {text = "▾", font = Enum.Font.GothamBold, size = 13, color = C.textDim,
+    sz = UDim2.new(0, 24, 1, 0), pos = UDim2.new(1, -28, 0, 0), xalign = Enum.TextXAlignment.Center})
+
+-- Save / Load buttons
+local SaveCfgBtn = btn(CFCard, {bg = C.accent, text = "💾  SAVE CONFIG",
+    font = Enum.Font.GothamBold, size = 11, color = C.text,
+    sz = UDim2.new(0, 118, 0, 32), pos = UDim2.new(0, 14, 0, 248), radius = 8})
+hoverBtn(SaveCfgBtn, C.accent, C.accentHov)
+
+local LoadCfgBtn = btn(CFCard, {bg = C.cardDark, text = "📥  LOAD CONFIG",
+    font = Enum.Font.GothamBold, size = 11, color = C.text,
+    sz = UDim2.new(0, 118, 0, 32), pos = UDim2.new(1, -132, 0, 248), radius = 8})
+stroke(LoadCfgBtn, C.strokeDim, 1, 0)
+hoverBtn(LoadCfgBtn, C.cardDark, Color3.fromRGB(40, 40, 65))
+
+label(CFCard, {text = "Settings are saved locally.  ⓘ", font = Enum.Font.Gotham, size = 9, color = C.textMuted,
+    sz = UDim2.new(1, -28, 0, 14), pos = UDim2.new(0, 14, 0, 285)})
+
+-- ==============================
+-- PAGE: LOGS
+-- ==============================
+
+local LogsPage = frame(ContentArea, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, 0, 1, 0), trans = 1})
+LogsPage.Visible = false
+
+local LogsCard = frame(LogsPage, {bg = C.card,
+    sz = UDim2.new(1, -HP_PAD*2, 1, -HP_PAD*2),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD), radius = 10})
+stroke(LogsCard, C.strokeDim, 1, 0)
+
+label(LogsCard, {text = "≡  Activity Logs", font = Enum.Font.GothamBold, size = 13, color = C.text,
+    sz = UDim2.new(1, -28, 0, 36), pos = UDim2.new(0, 14, 0, 0)})
+
+local LogDiv = frame(LogsCard, {bg = C.strokeDim, sz = UDim2.new(1, -28, 0, 1), pos = UDim2.new(0, 14, 0, 36)})
+
+local LogScrollFrame = Instance.new("ScrollingFrame", LogsCard)
+LogScrollFrame.Size = UDim2.new(1, -8, 1, -44)
+LogScrollFrame.Position = UDim2.new(0, 4, 0, 42)
+LogScrollFrame.BackgroundTransparency = 1
+LogScrollFrame.BorderSizePixel = 0
+LogScrollFrame.ScrollBarThickness = 3
+LogScrollFrame.ScrollBarImageColor3 = C.accent
+LogScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+LogScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local LogList = Instance.new("UIListLayout", LogScrollFrame)
+LogList.Padding = UDim.new(0, 3)
+LogList.SortOrder = Enum.SortOrder.LayoutOrder
+
+local logCount = 0
+local function addLog(text, color)
+    logCount = logCount + 1
+    local entry = Instance.new("TextLabel", LogScrollFrame)
+    entry.BackgroundTransparency = 1
+    entry.Font = Enum.Font.Gotham
+    entry.TextSize = 10
+    entry.TextColor3 = color or C.textDim
+    entry.Text = "[" .. os.date("%H:%M:%S") .. "] " .. text
+    entry.Size = UDim2.new(1, -8, 0, 16)
+    entry.TextXAlignment = Enum.TextXAlignment.Left
+    entry.TextWrapped = true
+    entry.LayoutOrder = logCount
+end
+
+-- ==============================
+-- PAGE: ABOUT
+-- ==============================
+
+local AboutPage = frame(ContentArea, {bg = Color3.fromRGB(0,0,0),
+    sz = UDim2.new(1, 0, 1, 0), trans = 1})
+AboutPage.Visible = false
+
+local AbtCard = frame(AboutPage, {bg = C.card,
+    sz = UDim2.new(1, -HP_PAD*2, 1, -HP_PAD*2),
+    pos = UDim2.new(0, HP_PAD, 0, HP_PAD), radius = 10})
+stroke(AbtCard, C.strokeDim, 1, 0)
+
+-- About avatar
+local AbtAv = frame(AbtCard, {bg = C.purple, sz = UDim2.new(0, 52, 0, 52), pos = UDim2.new(0.5, -26, 0, 16)})
+corner(AbtAv, 26)
+label(AbtAv, {text = "M", font = Enum.Font.GothamBold, size = 22, color = C.text,
+    sz = UDim2.new(1, 0, 1, 0), xalign = Enum.TextXAlignment.Center})
+
+label(AbtCard, {text = "Moderate", font = Enum.Font.GothamBold, size = 16, color = C.text,
+    sz = UDim2.new(1, 0, 0, 22), pos = UDim2.new(0, 0, 0, 72), xalign = Enum.TextXAlignment.Center})
+label(AbtCard, {text = "Private Server Bypass", font = Enum.Font.Gotham, size = 11, color = C.textDim,
+    sz = UDim2.new(1, 0, 0, 16), pos = UDim2.new(0, 0, 0, 94), xalign = Enum.TextXAlignment.Center})
+label(AbtCard, {text = "Mochii Scripts  •  v1.0.0", font = Enum.Font.Gotham, size = 10, color = C.textMuted,
+    sz = UDim2.new(1, 0, 0, 14), pos = UDim2.new(0, 0, 0, 114), xalign = Enum.TextXAlignment.Center})
+
+local AbtDiv = frame(AbtCard, {bg = C.strokeDim, sz = UDim2.new(1, -28, 0, 1), pos = UDim2.new(0, 14, 0, 136)})
+
+local abtFeatures = {
+    "⚡  Automatically hops to low-population servers",
+    "🔄  Rejoin same server with one click",
+    "⚙  Configurable player threshold",
+    "🔁  Auto mode with live monitoring",
+    "💾  Save & load config presets",
+}
+for i, f in ipairs(abtFeatures) do
+    label(AbtCard, {text = f, font = Enum.Font.Gotham, size = 11, color = C.textDim,
+        sz = UDim2.new(1, -28, 0, 20), pos = UDim2.new(0, 14, 0, 140 + (i-1)*22)})
+end
+
+-- ==============================
+-- Navigation logic
+-- ==============================
+
+local pages = {home = HomePage, config = ConfigPage, logs = LogsPage, about = AboutPage}
+
+local function switchPage(id)
+    currentPage = id
+    for pid, pg in pairs(pages) do
+        pg.Visible = (pid == id)
+    end
+    for nid, nb in pairs(navBtns) do
+        if nid == id then
+            nb.btn.BackgroundTransparency = 0
+            nb.btn.BackgroundColor3 = Color3.fromRGB(30, 30, 52)
+            nb.bar.Visible = true
+            nb.icon.TextColor3 = C.text
+            nb.lbl.TextColor3 = C.text
+            nb.lbl.Font = Enum.Font.GothamBold
+        else
+            nb.btn.BackgroundTransparency = 1
+            nb.bar.Visible = false
+            nb.icon.TextColor3 = C.textMuted
+            nb.lbl.TextColor3 = C.textMuted
+            nb.lbl.Font = Enum.Font.Gotham
+        end
+    end
+end
+
+for _, nav in ipairs(NAV_ITEMS) do
+    navBtns[nav.id].btn.MouseButton1Click:Connect(function()
+        switchPage(nav.id)
+    end)
+end
+
+-- Config nav close goes back to home
+CFCloseBtn.MouseButton1Click:Connect(function()
+    switchPage("home")
+end)
+
+switchPage("home")
+
+-- ==============================
+-- Open / Close panel from bubble
+-- ==============================
+
+local function openPanel()
+    MainPanel.Visible = true
+    PanelShadow.Visible = true
+    MainPanel.Size = UDim2.new(0, PANEL_W, 0, 0)
+    TweenService:Create(MainPanel, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, PANEL_W, 0, PANEL_H)
+    }):Play()
+end
+
+local function closePanel()
+    TweenService:Create(MainPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, PANEL_W, 0, 0)
+    }):Play()
+    task.wait(0.22)
+    MainPanel.Visible = false
+    PanelShadow.Visible = false
+end
+
+Bubble.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if not MainPanel.Visible then
+            openPanel()
+        end
+    end
+end)
+
+PMinBtn.MouseButton1Click:Connect(function()
+    closePanel()
+end)
+
+PCloseBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(MainPanel, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, PANEL_W, 0, 0)
     }):Play()
     task.wait(0.2)
     ScreenGui:Destroy()
 end)
 
-local isMin = false
-MinBtn.MouseButton1Click:Connect(function()
-    isMin = not isMin
-    if isMin then
-        MinBtn.Text = "+"
-        TweenService:Create(Bubble, TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, BUBBLE_W, 0, HEADER_H)
-        }):Play()
-    else
-        MinBtn.Text = "—"
-        TweenService:Create(Bubble, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, BUBBLE_W, 0, BUBBLE_H)
-        }):Play()
+-- ==============================
+-- Bubble dragging (manual, more reliable)
+-- ==============================
+
+local dragging = false
+local dragStart = nil
+local startPos = nil
+local dragObj = Bubble
+
+dragObj.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = dragObj.Position
     end
 end)
 
--- ==============================
--- Body content  (all positions are offsets from top of Bubble)
--- ==============================
+dragObj.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+        local delta = input.Position - dragStart
+        dragObj.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+end)
 
--- Player count label
-local NowLabel = Instance.new("TextLabel", Bubble)
-NowLabel.Position = UDim2.new(0, 12, 0, HEADER_H + 8)
-NowLabel.Size = UDim2.new(1, -24, 0, 18)
-NowLabel.BackgroundTransparency = 1
-NowLabel.Font = Enum.Font.GothamBold
-NowLabel.TextXAlignment = Enum.TextXAlignment.Left
-NowLabel.TextColor3 = Color3.fromRGB(90, 215, 120)
-NowLabel.TextSize = 12
-
--- Status message bubble
-local MsgBg = Instance.new("Frame", Bubble)
-MsgBg.Position = UDim2.new(0, 12, 0, HEADER_H + 30)
-MsgBg.Size = UDim2.new(1, -24, 0, 30)
-MsgBg.BackgroundColor3 = Color3.fromRGB(36, 36, 56)
-MsgBg.BorderSizePixel = 0
-Instance.new("UICorner", MsgBg).CornerRadius = UDim.new(0, 10)
-
-local StatusLabel = Instance.new("TextLabel", MsgBg)
-StatusLabel.Size = UDim2.new(1, -12, 1, 0)
-StatusLabel.Position = UDim2.new(0, 8, 0, 0)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-StatusLabel.TextSize = 11
-StatusLabel.TextWrapped = true
-
--- Threshold label
-local HintLbl = Instance.new("TextLabel", Bubble)
-HintLbl.Position = UDim2.new(0, 12, 0, HEADER_H + 66)
-HintLbl.Size = UDim2.new(1, -24, 0, 14)
-HintLbl.BackgroundTransparency = 1
-HintLbl.Font = Enum.Font.Gotham
-HintLbl.TextXAlignment = Enum.TextXAlignment.Left
-HintLbl.TextColor3 = Color3.fromRGB(105, 105, 150)
-HintLbl.TextSize = 10
-HintLbl.Text = "Max players threshold (hop if above):"
-
--- Threshold input box
-local MaxBox = Instance.new("TextBox", Bubble)
-MaxBox.Position = UDim2.new(0, 12, 0, HEADER_H + 82)
-MaxBox.Size = UDim2.new(1, -24, 0, 28)
-MaxBox.BackgroundColor3 = Color3.fromRGB(36, 36, 56)
-MaxBox.BorderSizePixel = 0
-MaxBox.Font = Enum.Font.GothamBold
-MaxBox.Text = "1"
-MaxBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-MaxBox.TextSize = 13
-MaxBox.ClearTextOnFocus = false
-Instance.new("UICorner", MaxBox).CornerRadius = UDim.new(0, 8)
-
--- ==============================
--- Three buttons on one row
--- ==============================
-
-local BTN_Y    = HEADER_H + 118   -- Y offset inside Bubble
-local BTN_H    = 36
-local BTN_PAD  = 8
-local BTN_W    = math.floor((BUBBLE_W - BTN_PAD * 4) / 3)  -- equal thirds
-
--- Join
-local JoinBtn = Instance.new("TextButton", Bubble)
-JoinBtn.Position = UDim2.new(0, BTN_PAD, 0, BTN_Y)
-JoinBtn.Size = UDim2.new(0, BTN_W, 0, BTN_H)
-JoinBtn.BackgroundColor3 = Color3.fromRGB(55, 75, 200)
-JoinBtn.BorderSizePixel = 0
-JoinBtn.Font = Enum.Font.GothamBold
-JoinBtn.Text = "Join"
-JoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-JoinBtn.TextSize = 13
-Instance.new("UICorner", JoinBtn).CornerRadius = UDim.new(0, 10)
-
--- Auto
-local AutoBtn = Instance.new("TextButton", Bubble)
-AutoBtn.Position = UDim2.new(0, BTN_PAD * 2 + BTN_W, 0, BTN_Y)
-AutoBtn.Size = UDim2.new(0, BTN_W, 0, BTN_H)
-AutoBtn.BackgroundColor3 = Color3.fromRGB(35, 115, 65)
-AutoBtn.BorderSizePixel = 0
-AutoBtn.Font = Enum.Font.GothamBold
-AutoBtn.Text = "Auto: OFF"
-AutoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-AutoBtn.TextSize = 12
-Instance.new("UICorner", AutoBtn).CornerRadius = UDim.new(0, 10)
-
--- Rejoin
-local RejoinBtn = Instance.new("TextButton", Bubble)
-RejoinBtn.Position = UDim2.new(0, BTN_PAD * 3 + BTN_W * 2, 0, BTN_Y)
-RejoinBtn.Size = UDim2.new(0, BTN_W, 0, BTN_H)
-RejoinBtn.BackgroundColor3 = Color3.fromRGB(115, 45, 185)
-RejoinBtn.BorderSizePixel = 0
-RejoinBtn.Font = Enum.Font.GothamBold
-RejoinBtn.Text = "↩ Rejoin"
-RejoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-RejoinBtn.TextSize = 12
-Instance.new("UICorner", RejoinBtn).CornerRadius = UDim.new(0, 10)
-
--- ==============================
--- Pop-in tween (center → full size)
--- ==============================
-
-TweenService:Create(Bubble, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-    Size = UDim2.new(0, BUBBLE_W, 0, BUBBLE_H)
-}):Play()
+dragObj.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
 
 -- ==============================
 -- LOGIC
@@ -272,13 +800,38 @@ TweenService:Create(Bubble, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.Easin
 local autoEnabled = false
 local autoThread  = nil
 
--- Live player count
+-- Live player count update
 task.spawn(function()
     while ScreenGui.Parent do
-        NowLabel.Text = "● " .. #Players:GetPlayers() .. " player(s) in this server"
-        task.wait(1)
+        local count = #Players:GetPlayers()
+        local max = 50
+        PlayerCountLbl.Text = count .. " / " .. max
+        BubbleCount.Text = count .. "/" .. max
+        task.wait(2)
     end
 end)
+
+local function setStatus(text, color, state)
+    StatusSubLbl.Text = text
+    StatusSubLbl.TextColor3 = color or C.textDim
+    -- Update status dot color
+    if state == "ok" then
+        StatusDotMain.BackgroundColor3 = C.green
+    elseif state == "warn" then
+        StatusDotMain.BackgroundColor3 = C.orange
+    elseif state == "hop" then
+        StatusDotMain.BackgroundColor3 = Color3.fromRGB(120, 80, 255)
+        -- Update bubble dot
+        TweenService:Create(BubbleDot, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 165, 0)}):Play()
+    elseif state == "error" then
+        StatusDotMain.BackgroundColor3 = C.red
+        TweenService:Create(BubbleDot, TweenInfo.new(0.2), {BackgroundColor3 = C.red}):Play()
+    else
+        StatusDotMain.BackgroundColor3 = C.green
+        TweenService:Create(BubbleDot, TweenInfo.new(0.2), {BackgroundColor3 = C.green}):Play()
+    end
+    addLog(text, color)
+end
 
 local function getRandomServer()
     local url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
@@ -298,36 +851,40 @@ local function getRandomServer()
 end
 
 local function joinOnce()
-    local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+    local threshold = math.max(1, math.floor(tonumber(ThreshInput.Text) or 1))
     local count = #Players:GetPlayers()
     if count <= threshold then
-        StatusLabel.Text = "✓ Only " .. count .. " player(s). No need to hop."
-        StatusLabel.TextColor3 = Color3.fromRGB(90, 215, 120)
+        setStatus("✓ Only " .. count .. " players. No need to hop.", C.green, "ok")
         return false
     end
-    StatusLabel.Text = "Searching for a low-pop server..."
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 210, 60)
+    setStatus("Searching for a low-pop server...", C.orange, "warn")
     task.wait(0.5)
     local serverId = getRandomServer()
     if not serverId then
-        StatusLabel.Text = "Can't fetch servers. Enable HTTP in executor."
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        setStatus("Can't fetch servers. Enable HTTP in executor.", C.red, "error")
         return false
     end
-    StatusLabel.Text = "Teleporting..."
-    StatusLabel.TextColor3 = Color3.fromRGB(120, 180, 255)
+    setStatus("Teleporting...", Color3.fromRGB(120, 180, 255), "hop")
     task.wait(0.5)
     local ok, err = pcall(function()
         TeleportService:TeleportToPlaceInstance(PlaceId, serverId, LocalPlayer)
     end)
     if not ok then
-        StatusLabel.Text = "Error: " .. tostring(err):sub(1, 55)
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        setStatus("Error: " .. tostring(err):sub(1, 55), C.red, "error")
         return false
     end
     return true
 end
 
+-- HOP SERVER button
+HopBtn.MouseButton1Click:Connect(function()
+    HopBtn.Active = false
+    joinOnce()
+    task.wait(2)
+    HopBtn.Active = true
+end)
+
+-- JOIN button
 JoinBtn.MouseButton1Click:Connect(function()
     JoinBtn.Active = false
     joinOnce()
@@ -335,18 +892,19 @@ JoinBtn.MouseButton1Click:Connect(function()
     JoinBtn.Active = true
 end)
 
+-- AUTO button
 AutoBtn.MouseButton1Click:Connect(function()
     autoEnabled = not autoEnabled
     if autoEnabled then
-        AutoBtn.Text = "Auto: ON"
-        AutoBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        AutoBtn.Text = "⏹  AUTO: ON"
+        AutoBtn.BackgroundColor3 = C.red
+        setToggle(true)
         autoThread = task.spawn(function()
             while autoEnabled and ScreenGui.Parent do
-                local threshold = math.max(1, math.floor(tonumber(MaxBox.Text) or 1))
+                local threshold = math.max(1, math.floor(tonumber(ThreshInput.Text) or 1))
                 local count = #Players:GetPlayers()
                 if count <= threshold then
-                    StatusLabel.Text = "✓ " .. count .. " player(s). Watching..."
-                    StatusLabel.TextColor3 = Color3.fromRGB(90, 215, 120)
+                    setStatus("✓ " .. count .. " players. Watching...", C.green, "ok")
                     task.wait(3)
                 else
                     joinOnce()
@@ -355,40 +913,32 @@ AutoBtn.MouseButton1Click:Connect(function()
             end
         end)
     else
-        AutoBtn.Text = "Auto: OFF"
-        AutoBtn.BackgroundColor3 = Color3.fromRGB(35, 115, 65)
+        AutoBtn.Text = "▶  AUTO: OFF"
+        AutoBtn.BackgroundColor3 = C.greenBtn
+        setToggle(false)
         if autoThread then task.cancel(autoThread) autoThread = nil end
-        StatusLabel.Text = "Auto Join stopped."
-        StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+        setStatus("Auto mode stopped.", C.textDim, "ok")
     end
 end)
 
--- ==============================
--- REJOIN — disconnect and reconnect to the exact same server
--- TeleportToPlaceInstance(PlaceId, game.JobId) with no player arg is the
--- standard executor rejoin pattern — works client-side, kicks and puts you
--- back into the same JobId instance.
--- Confirmed from: https://github.com/ic3w0lf22/Environment-Autoexec
--- ==============================
-
+-- REJOIN button
 RejoinBtn.MouseButton1Click:Connect(function()
     RejoinBtn.Active = false
-    StatusLabel.Text = "Rejoining server..."
-    StatusLabel.TextColor3 = Color3.fromRGB(180, 120, 255)
+    setStatus("Rejoining server...", Color3.fromRGB(180, 120, 255), "hop")
     task.wait(0.5)
-
     local ok, err = pcall(function()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId)
     end)
-
     if not ok then
-        StatusLabel.Text = "Rejoin error: " .. tostring(err):sub(1, 50)
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        setStatus("Rejoin error: " .. tostring(err):sub(1, 50), C.red, "error")
         task.wait(2)
         RejoinBtn.Active = true
     end
 end)
 
+-- ==============================
 -- Init
-StatusLabel.Text = "Ready — set threshold and hit Join."
-StatusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+-- ==============================
+
+setStatus("Ready — set threshold and hit Join.", C.textDim, "ok")
+addLog("Script loaded. Ready.", C.green)
