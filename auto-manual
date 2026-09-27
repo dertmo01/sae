@@ -531,6 +531,7 @@ end
 local arCard=Instance.new("TextButton")
 arCard.Size=UDim2.new(1,-8,0,58); arCard.BackgroundColor3=Color3.fromRGB(18,55,105)
 arCard.BorderSizePixel=0; arCard.Text=""; arCard.AutoButtonColor=false; arCard.Parent=scriptsPage
+arCard.Visible=false  -- HIDDEN: Auto Run is now integrated into Anti-Hit
 Instance.new("UICorner",arCard).CornerRadius=UDim.new(0,11)
 
 local arSweep=Instance.new("UIGradient"); arSweep.Rotation=0; arSweep.Offset=Vector2.new(1.15,0)
@@ -607,6 +608,19 @@ local function startAutoRun()
             stopAutoRun("no character"); return
         end
 
+        -- ══════════════════════════════════════════════════════════════
+        -- TRY TO PICK UP EGG (if CollectEvent remote is available)
+        -- This makes big eggs carriable by calling the remote
+        -- ══════════════════════════════════════════════════════════════
+        if CollectEvent and CurrentEggUid then
+            log("AutoRun: attempting to carry egg '"..CurrentEggUid.."'", LOG_INFO)
+            pcall(function()
+                CollectEvent:InvokeServer(CurrentEggUid)
+                log("AutoRun: egg carry remote invoked", LOG_OK)
+            end)
+            task.wait(0.2)  -- brief pause for egg to attach
+        end
+
         -- Start a Heartbeat to force WalkSpeed every frame
         local speedConn = RunService.Heartbeat:Connect(function()
             if not AutoRunning then return end
@@ -671,6 +685,8 @@ arCard.InputBegan:Connect(function(input)
             log("AutoRun toggled: "..(AutoRunEnabled and "ON" or "OFF"), AutoRunEnabled and LOG_OK or LOG_WARN)
             if AutoRunEnabled then
                 setArVisual("on","ON  •  waiting for egg pickup")
+                -- Start Auto Run immediately when button is clicked
+                task.spawn(function() startAutoRun() end)
             else
                 setArVisual("off","OFF")
             end
@@ -679,507 +695,7 @@ arCard.InputBegan:Connect(function(input)
 end)
 setArVisual("off","OFF")
 
--- ======================================================
--- FEATURE 3 : AUTO FARM (DISABLED - For future use)
--- ======================================================
--- [COMMENTED OUT - Needs tweaks. Uncomment to enable]
---[[
-local AutoFarmEnabled = false
-local AutoFarmRunning = false
-
--- Track selected eggs: { [eggUid] = true/false, ... }
-local SelectedEggs = {}
-local AllScannedEggs = {}  -- Cache of all eggs found
-
--- Rarity order (for display priority)
-local RARITY_ORDER = { "Cosmic", "Divine", "Eternal", "Secret" }
-local RARITY_COLORS = {
-    ["Cosmic"]  = Color3.fromRGB(220, 100, 255),  -- Purple
-    ["Divine"]  = Color3.fromRGB(255, 215, 0),   -- Gold
-    ["Eternal"] = Color3.fromRGB(100, 200, 255), -- Blue
-    ["Secret"]  = Color3.fromRGB(100, 255, 150), -- Green
-}
-
--- Auto Farm card
-local afCard=Instance.new("TextButton")
-afCard.Size=UDim2.new(1,-8,0,180); afCard.BackgroundColor3=Color3.fromRGB(18,105,55)
-afCard.BorderSizePixel=0; afCard.Text=""; afCard.AutoButtonColor=false; afCard.Parent=scriptsPage
-Instance.new("UICorner",afCard).CornerRadius=UDim.new(0,11)
-
-local afSweep=Instance.new("UIGradient"); afSweep.Rotation=0; afSweep.Offset=Vector2.new(1.15,0)
-afSweep.Color=mkSeq(Color3.fromRGB(18,105,55)); afSweep.Parent=afCard
-
-local afTitle=Instance.new("TextLabel"); afTitle.BackgroundTransparency=1
-afTitle.Position=UDim2.fromOffset(13,5); afTitle.Size=UDim2.new(1,-26,0,26)
-afTitle.Text="🌾  AUTO FARM"; afTitle.Font=Enum.Font.FredokaOne; afTitle.TextSize=13
-afTitle.TextColor3=Color3.new(1,1,1); afTitle.TextXAlignment=Enum.TextXAlignment.Left
-afTitle.ZIndex=afCard.ZIndex+2; afTitle.Parent=afCard
-
-local afStatus=Instance.new("TextLabel"); afStatus.BackgroundTransparency=1
-afStatus.Position=UDim2.fromOffset(14,33); afStatus.Size=UDim2.new(1,-28,0,18)
-afStatus.Text="OFF"; afStatus.Font=Enum.Font.FredokaOne; afStatus.TextSize=10
-afStatus.TextColor3=Color3.fromRGB(170,200,255); afStatus.TextXAlignment=Enum.TextXAlignment.Left
-afStatus.ZIndex=afCard.ZIndex+2; afStatus.Parent=afCard
-
--- Content container for integrated controls
-local afContent = Instance.new("Frame")
-afContent.Size = UDim2.new(1,-10,1,-60)
-afContent.Position = UDim2.fromOffset(5,55)
-afContent.BackgroundTransparency = 1
-afContent.Parent = afCard
-
-local afLayout = Instance.new("UIListLayout")
-afLayout.FillDirection = Enum.FillDirection.Vertical
-afLayout.Padding = UDim.new(0,6)
-afLayout.SortOrder = Enum.SortOrder.LayoutOrder
-afLayout.Parent = afContent
-
--- Speed control row
-local speedLabel = Instance.new("TextLabel")
-speedLabel.Size = UDim2.new(1,0,0,14)
-speedLabel.BackgroundTransparency = 1
-speedLabel.Text = "Speed: "..RUN_SPEED
-speedLabel.Font = Enum.Font.FredokaOne
-speedLabel.TextSize = 8
-speedLabel.TextColor3 = Color3.fromRGB(190,190,200)
-speedLabel.TextXAlignment = Enum.TextXAlignment.Left
-speedLabel.LayoutOrder = 1
-speedLabel.Parent = afContent
-
-local speedRow = Instance.new("Frame")
-speedRow.Size = UDim2.new(1,0,0,24)
-speedRow.BackgroundTransparency = 1
-speedRow.LayoutOrder = 2
-speedRow.Parent = afContent
-
-local speedMinus = Instance.new("TextButton")
-speedMinus.Size = UDim2.new(0.2,-2,1,0)
-speedMinus.Position = UDim2.fromOffset(0,0)
-speedMinus.BackgroundColor3 = Color3.fromRGB(100,50,50)
-speedMinus.BorderSizePixel = 0
-speedMinus.Text = "−"
-speedMinus.Font = Enum.Font.FredokaOne
-speedMinus.TextSize = 10
-speedMinus.TextColor3 = Color3.new(1,1,1)
-speedMinus.AutoButtonColor = false
-speedMinus.Parent = speedRow
-Instance.new("UICorner",speedMinus).CornerRadius = UDim.new(0,5)
-
-local speedDisplay = Instance.new("TextLabel")
-speedDisplay.Size = UDim2.new(0.6,-4,1,0)
-speedDisplay.Position = UDim2.new(0.2,2,0,0)
-speedDisplay.BackgroundColor3 = Color3.fromRGB(40,40,40)
-speedDisplay.BorderSizePixel = 0
-speedDisplay.Text = tostring(RUN_SPEED)
-speedDisplay.Font = Enum.Font.FredokaOne
-speedDisplay.TextSize = 10
-speedDisplay.TextColor3 = Color3.fromRGB(150,255,150)
-speedDisplay.Parent = speedRow
-Instance.new("UICorner",speedDisplay).CornerRadius = UDim.new(0,5)
-
-local speedPlus = Instance.new("TextButton")
-speedPlus.Size = UDim2.new(0.2,-2,1,0)
-speedPlus.Position = UDim2.new(0.8,2,0,0)
-speedPlus.BackgroundColor3 = Color3.fromRGB(50,100,50)
-speedPlus.BorderSizePixel = 0
-speedPlus.Text = "+"
-speedPlus.Font = Enum.Font.FredokaOne
-speedPlus.TextSize = 10
-speedPlus.TextColor3 = Color3.new(1,1,1)
-speedPlus.AutoButtonColor = false
-speedPlus.Parent = speedRow
-Instance.new("UICorner",speedPlus).CornerRadius = UDim.new(0,5)
-
-speedMinus.Activated:Connect(function()
-    playClick()
-    RUN_SPEED = math.max(16, RUN_SPEED - 50)
-    speedLabel.Text = "Speed: "..RUN_SPEED
-    speedDisplay.Text = tostring(RUN_SPEED)
-    log("Speed set to "..RUN_SPEED, LOG_INFO)
-end)
-
-speedPlus.Activated:Connect(function()
-    playClick()
-    RUN_SPEED = math.min(800, RUN_SPEED + 50)
-    speedLabel.Text = "Speed: "..RUN_SPEED
-    speedDisplay.Text = tostring(RUN_SPEED)
-    log("Speed set to "..RUN_SPEED, LOG_INFO)
-end)
-
--- Rarity filter row
-local rarityLabel = Instance.new("TextLabel")
-rarityLabel.Size = UDim2.new(1,0,0,14)
-rarityLabel.BackgroundTransparency = 1
-rarityLabel.Text = "Filter:"
-rarityLabel.Font = Enum.Font.FredokaOne
-rarityLabel.TextSize = 8
-rarityLabel.TextColor3 = Color3.fromRGB(190,190,200)
-rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
-rarityLabel.LayoutOrder = 3
-rarityLabel.Parent = afContent
-
-local rarityRow = Instance.new("Frame")
-rarityRow.Size = UDim2.new(1,0,0,24)
-rarityRow.BackgroundTransparency = 1
-rarityRow.LayoutOrder = 4
-rarityRow.Parent = afContent
-
-local function makeRarityBtn(text, rarity, xPos)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.24,-2,1,0)
-    btn.Position = UDim2.new(xPos,xPos>0 and 2 or 0,0,0)
-    btn.BackgroundColor3 = Color3.fromRGB(80,80,80)  -- Start grey (unselected)
-    btn.BorderSizePixel = 0
-    btn.Text = text
-    btn.Font = Enum.Font.FredokaOne
-    btn.TextSize = 7
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.AutoButtonColor = false
-    btn.Parent = rarityRow
-    Instance.new("UICorner",btn).CornerRadius = UDim.new(0,5)
-    btn.Rarity = rarity
-    btn.IsSelected = false
-    return btn
-end
-
-local cosmicBtn = makeRarityBtn("Cosmic", "Cosmic", 0)
-local divineBtn = makeRarityBtn("Divine", "Divine", 0.25)
-local eternalBtn = makeRarityBtn("Eternal", "Eternal", 0.5)
-local secretBtn = makeRarityBtn("Secret", "Secret", 0.75)
-local rarityBtns = {cosmicBtn, divineBtn, eternalBtn, secretBtn}
-
-local function updateRarityButtonVisuals()
-    for _, btn in ipairs(rarityBtns) do
-        if btn.IsSelected then
-            btn.BackgroundColor3 = RARITY_COLORS[btn.Rarity]
-        else
-            btn.BackgroundColor3 = Color3.fromRGB(80,80,80)  -- Grey when unselected
-        end
-    end
-end
-
-local function selectEggsByRarity(rarity)
-    SelectedEggs = {}
-    local count = 0
-    
-    -- Update button states
-    for _, btn in ipairs(rarityBtns) do
-        if btn.Rarity:lower() == rarity:lower() then
-            btn.IsSelected = true
-        else
-            btn.IsSelected = false
-        end
-    end
-    
-    -- Select eggs matching rarity
-    for _, egg in ipairs(AllScannedEggs) do
-        if egg.Rarity:lower() == rarity:lower() then
-            SelectedEggs[egg.Uid] = true
-            count = count + 1
-        end
-    end
-    
-    updateRarityButtonVisuals()
-    
-    if count > 0 then
-        log("Selected "..count.." eggs ("..rarity..")", LOG_OK)
-        setAfVisual("on", "ON  •  "..count.." selected")
-    else
-        log("No eggs found for "..rarity, LOG_WARN)
-    end
-end
-
-cosmicBtn.Activated:Connect(function() playClick(); selectEggsByRarity("cosmic") end)
-divineBtn.Activated:Connect(function() playClick(); selectEggsByRarity("divine") end)
-eternalBtn.Activated:Connect(function() playClick(); selectEggsByRarity("eternal") end)
-secretBtn.Activated:Connect(function() playClick(); selectEggsByRarity("secret") end)
-
-local afToken=0
-local function animAfSweep(c)
-    afToken+=1; local tok=afToken; afSweep.Color=mkSeq(c)
-    task.spawn(function()
-        while gui.Parent and afCard.Parent and afToken==tok do
-            afSweep.Offset=Vector2.new(1.15,0)
-            tw(afSweep,TweenInfo.new(1.45,Enum.EasingStyle.Linear),{Offset=Vector2.new(-1.15,0)}).Completed:Wait()
-        end
-    end)
-end
-
-local function setAfVisual(state, txt)
-    if state=="running" then
-        afCard.BackgroundColor3=Color3.fromRGB(50,180,90)
-        afStatus.TextColor3=Color3.fromRGB(110,255,145)
-        animAfSweep(Color3.fromRGB(50,180,90))
-    elseif state=="on" then
-        afCard.BackgroundColor3=Color3.fromRGB(30,140,70)
-        afStatus.TextColor3=Color3.fromRGB(130,200,145)
-        animAfSweep(Color3.fromRGB(30,140,70))
-    else
-        afCard.BackgroundColor3=Color3.fromRGB(18,105,55)
-        afStatus.TextColor3=Color3.fromRGB(170,200,255)
-        animAfSweep(Color3.fromRGB(18,105,55))
-    end
-    if txt then afStatus.Text = txt end
-end
-
--- Scan eggs and detect their rarity
-local function scanAndDetectEggs()
-    AllScannedEggs = {}
-    local container = workspace:FindFirstChild("AreaEggSlotsClient")
-    if not container then
-        log("AutoFarm: AreaEggSlotsClient not found!", LOG_ERR)
-        return
-    end
-
-    for _, child in ipairs(container:GetChildren()) do
-        if child:IsA("Model") then
-            local eggName = child.Name
-            local rarity = nil
-            
-            -- Try to detect rarity from model attributes
-            local rareAttr = child:GetAttribute("Rarity") or child:GetAttribute("Tier") or child:GetAttribute("Type") or child:GetAttribute("Egg")
-            if rareAttr then
-                local rareStr = tostring(rareAttr):lower()
-                for _, r in ipairs(RARITY_ORDER) do
-                    if string.find(rareStr, r:lower()) then
-                        rarity = r
-                        break
-                    end
-                end
-            end
-            
-            -- Fallback: check name for rarity keywords
-            if not rarity then
-                local nameLower = eggName:lower()
-                for _, r in ipairs(RARITY_ORDER) do
-                    if string.find(nameLower, r:lower()) then
-                        rarity = r
-                        break
-                    end
-                end
-            end
-
-            -- If still no rarity, check part names for hints
-            if not rarity then
-                for _, desc in ipairs(child:GetDescendants()) do
-                    if desc:IsA("BasePart") then
-                        local partNameLower = desc.Name:lower()
-                        for _, r in ipairs(RARITY_ORDER) do
-                            if string.find(partNameLower, r:lower()) then
-                                rarity = r
-                                break
-                            end
-                        end
-                        if rarity then break end
-                    end
-                end
-            end
-
-            -- Last resort: assume "Secret" as default
-            if not rarity then
-                rarity = "Secret"
-            end
-
-            -- Find position
-            local pos = nil
-            if child.PrimaryPart then
-                pos = child.PrimaryPart.Position
-            else
-                for _, c in ipairs(child:GetChildren()) do
-                    if c:IsA("BasePart") then
-                        pos = c.Position
-                        break
-                    end
-                end
-            end
-
-            if pos then
-                table.insert(AllScannedEggs, {
-                    Uid = eggName,
-                    Name = eggName,
-                    Rarity = rarity,
-                    Position = pos,
-                    Model = child
-                })
-            end
-        end
-    end
-
-    -- Sort by rarity (Cosmic > Divine > Eternal > Secret)
-    table.sort(AllScannedEggs, function(a, b)
-        local rareA = table.find(RARITY_ORDER, a.Rarity) or 999
-        local rareB = table.find(RARITY_ORDER, b.Rarity) or 999
-        if rareA ~= rareB then return rareA < rareB end
-        return a.Uid < b.Uid
-    end)
-
-    log("AutoFarm: scanned "..#AllScannedEggs.." eggs total", LOG_INFO)
-    
-    -- Count by rarity
-    local counts = {}
-    for _, egg in ipairs(AllScannedEggs) do
-        counts[egg.Rarity] = (counts[egg.Rarity] or 0) + 1
-    end
-    for _, rarity in ipairs(RARITY_ORDER) do
-        if counts[rarity] then
-            log("  "..rarity..": "..counts[rarity], LOG_OK)
-        end
-    end
-    
-    -- AUTO-SELECT ALL EGGS on scan
-    SelectedEggs = {}
-    for _, egg in ipairs(AllScannedEggs) do
-        SelectedEggs[egg.Uid] = true
-    end
-    log("AutoFarm: auto-selected "..#AllScannedEggs.." eggs", LOG_OK)
-    
-    return AllScannedEggs
-end
-
-local function stopAutoFarm(reason)
-    AutoFarmRunning=false
-    log("AutoFarm: STOPPED — "..(reason or "done"),LOG_WARN)
-    if AutoFarmEnabled then
-        local count = 0
-        for _, isSelected in pairs(SelectedEggs) do
-            if isSelected then count = count + 1 end
-        end
-        setAfVisual("on","ON  •  "..count.." selected")
-    else
-        setAfVisual("off","OFF")
-    end
-end
-
-local function startAutoFarm()
-    if AutoFarmRunning then log("AutoFarm: already running, skip",LOG_WARN); return end
-    
-    -- Count selected eggs
-    local selectedCount = 0
-    for _, isSelected in pairs(SelectedEggs) do
-        if isSelected then selectedCount = selectedCount + 1 end
-    end
-
-    if selectedCount == 0 then
-        log("AutoFarm: no eggs selected!", LOG_WARN)
-        return
-    end
-
-    AutoFarmRunning=true
-    log("AutoFarm: START — farming "..selectedCount.." selected eggs",LOG_OK)
-    setAfVisual("running","Searching for selected eggs...")
-
-    task.spawn(function()
-        -- Find closest selected egg
-        local targetEgg = nil
-        local targetPos = nil
-        local closestDist = 9999
-        
-        local char = Player.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        
-        if not root then
-            log("AutoFarm: no root", LOG_ERR)
-            stopAutoFarm("no character"); return
-        end
-
-        for _, egg in ipairs(AllScannedEggs) do
-            if SelectedEggs[egg.Uid] then
-                local dist = (egg.Position - root.Position).Magnitude
-                if dist < closestDist then
-                    closestDist = dist
-                    targetEgg = egg
-                    targetPos = egg.Position
-                    log("AutoFarm: target = "..egg.Rarity.." '"..egg.Name.."' at distance "..math.floor(dist), LOG_INFO)
-                end
-            end
-        end
-
-        if not targetPos then
-            log("AutoFarm: no selected eggs in range", LOG_WARN)
-            stopAutoFarm("no selected"); return
-        end
-
-        log("AutoFarm: running to egg at ("..math.floor(targetPos.X)..","..math.floor(targetPos.Y)..","..math.floor(targetPos.Z)..")", LOG_OK)
-        
-        -- Run to the egg using the same speed system
-        local speedConn = RunService.Heartbeat:Connect(function()
-            if not AutoFarmRunning then return end
-            local c = Player.Character
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            if h then
-                pcall(function() h.WalkSpeed = RUN_SPEED end)
-            end
-        end)
-
-        local startTime = tick()
-        local TIMEOUT = 60
-        
-        while AutoFarmRunning and AutoFarmEnabled do
-            local c = Player.Character
-            local h = c and c:FindFirstChildOfClass("Humanoid")
-            local r = c and c:FindFirstChild("HumanoidRootPart")
-            
-            if not h or not r then
-                speedConn:Disconnect()
-                log("AutoFarm: lost humanoid/root", LOG_ERR)
-                stopAutoFarm("lost root"); return
-            end
-            
-            if h.Health <= 0 then
-                speedConn:Disconnect()
-                log("AutoFarm: died", LOG_ERR)
-                stopAutoFarm("dead"); return
-            end
-            
-            local dist = (r.Position - targetPos).Magnitude
-            
-            if dist <= ARRIVE_DIST then
-                speedConn:Disconnect()
-                log("AutoFarm: reached egg! Pick it up now.", LOG_OK)
-                setAfVisual("on", "REACHED — pick up egg!")
-                break
-            end
-            
-            if tick() - startTime > TIMEOUT then
-                speedConn:Disconnect()
-                log("AutoFarm: timeout after "..math.floor(tick()-startTime).."s", LOG_WARN)
-                stopAutoFarm("timeout"); return
-            end
-            
-            pcall(function() h:MoveTo(targetPos) end)
-            task.wait(0.1)
-        end
-
-        stopAutoFarm("done")
-    end)
-end
-
-afCard.InputBegan:Connect(function(input)
-    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-        playClick()
-        if AutoFarmRunning then
-            AutoFarmEnabled=false
-            stopAutoFarm("user cancelled")
-        else
-            AutoFarmEnabled=not AutoFarmEnabled
-            log("AutoFarm toggled: "..(AutoFarmEnabled and "ON" or "OFF"), AutoFarmEnabled and LOG_OK or LOG_WARN)
-            if AutoFarmEnabled then
-                local count = 0
-                for _, isSelected in pairs(SelectedEggs) do
-                    if isSelected then count = count + 1 end
-                end
-                setAfVisual("on","ON  •  "..count.." selected")
-                task.spawn(function() startAutoFarm() end)
-            else
-                setAfVisual("off","OFF")
-            end
-        end
-    end
-end)
-setAfVisual("off","OFF")
-]]
-
--- Wire: Anti-Hit finishes → start Auto Run
+-- Wire: Anti-Hit finishes → auto run back to base (ALWAYS, no need for separate button)
 ProximityPromptService.PromptTriggered:Connect(function(prompt,player)
     if player~=Player then return end
     
@@ -1187,7 +703,7 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt,player)
     local eggModel = prompt.Parent
     if eggModel and eggModel.Parent then
         CurrentEggUid = eggModel.Name
-        log("AutoRun: captured egg = "..CurrentEggUid, LOG_INFO)
+        log("AntiHit: captured egg = "..CurrentEggUid, LOG_INFO)
     end
     
     log("ProximityPrompt fired! AntiHit="..(AntiHitEnabled and "ON" or "OFF").." Running="..(AntiHitRunning and "yes" or "no"),LOG_INFO)
@@ -1197,12 +713,14 @@ ProximityPromptService.PromptTriggered:Connect(function(prompt,player)
     local character=Player.Character
     if not character then log("ProximityPrompt: no character!",LOG_ERR); return end
     task.spawn(function()
+        -- STEP 1: Run Anti-Hit route (dodge attacks)
         runAntiHitRoute(character)
-        log("AutoRun enabled=".. (AutoRunEnabled and "YES" or "NO").."  running="..(AutoRunning and "YES" or "NO"),LOG_INFO)
-        if AutoRunEnabled and not AutoRunning then
+        log("AntiHit: route finished, now auto-running home...", LOG_OK)
+        
+        -- STEP 2: Auto run back to base (ALWAYS, integrated feature)
+        task.wait(0.5)  -- brief pause after dodging
+        if not AutoRunning then
             startAutoRun()
-        else
-            log("AutoRun: not started (enabled=".. tostring(AutoRunEnabled)..")",LOG_WARN)
         end
     end)
 end)
