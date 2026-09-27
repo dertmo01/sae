@@ -433,22 +433,32 @@ end)
 setAhVisual(false)
 
 -- ======================================================
--- FEATURE 2 : REAL AUTO FARM (Instant TP + Fast Steal)
+-- FEATURE 2 : REAL AUTO FARM (SAES Flow - State Machine)
 -- ======================================================
--- Real mechanics: TP to egg → instant pickup → slow return to safe zone
--- Uses BodyVelocity/BodyGyro for guard bypass + Ragdoll handling
+-- Uses caching, state tracking, position locking
+-- Prevents back-and-forth looping in first area
 -- ======================================================
 
 local SAFE_ZONE = Vector3.new(533, 70, -366)
-local SAFE_LOCK_DISTANCE = 8          -- studs from safe zone to switch to slow walk
+local FLY_OFFSET = 15                  -- Y offset when teleporting
+local LOCK_ABOVE = 2                   -- Y lock height above safe zone
+local SAFE_LOCK_DISTANCE = 3           -- studs to lock at safe zone
 local ARRIVE_DIST = 2                  -- studs to egg before picking up
-local FLY_SPEED = 500                  -- TP speed to eggs (not too fast to trigger anti-cheat)
-local RETURN_SPEED = 400               -- TP speed back to safe zone
-local TIMEOUT_SECONDS = 30             -- max time per egg
+local FLY_SPEED = 1000                 -- TP speed to eggs
+local RETURN_SPEED = 800               -- TP speed back
+local COLLECT_INTERVAL = 0.2           -- wait after pickup
 
 local AutoFarmEnabled = false
 local AutoFarmRunning = false
 local SelectedFarmRarities = { Cosmic = true, Divine = true, Eternal = true, Secret = true }
+
+-- ══════════════════════════════════════════════════════════════
+-- STATE TRACKING (SAES Style)
+-- ══════════════════════════════════════════════════════════════
+local EggCache = {}          -- {[eggUID] = {Name, Rarity, Pos}}
+local ProcessedEggs = {}     -- Eggs already delivered
+local TargetUID = nil        -- Current egg being processed
+local CurrentStep = "idle"   -- idle, flying, collecting, locking, done
 
 -- Grab the CollectEvent remote (same as working TeleportSystem)
 local CollectEvent = nil
@@ -464,118 +474,153 @@ if not CollectEvent then
 end
 
 -- ══════════════════════════════════════════════════════════════
--- HELPER: Detect egg rarity from name
+-- HELPER: Get position from object
 -- ══════════════════════════════════════════════════════════════
-local function detectRarity(eggName)
-    local low = eggName:lower()
-    if string.find(low, "cosmic") then return "Cosmic"
-    elseif string.find(low, "divine") then return "Divine"
-    elseif string.find(low, "eternal") then return "Eternal"
-    elseif string.find(low, "secret") then return "Secret"
-    else return "Secret" end
+local function GetPosition(object)
+    if not object then return nil end
+    if object:IsA("Model") then
+        if object.PrimaryPart then return object.PrimaryPart.Position end
+        for _, part in ipairs(object:GetChildren()) do
+            if part:IsA("BasePart") then return part.Position end
+        end
+    elseif object:IsA("BasePart") then
+        return object.Position
+    end
+    return nil
 end
 
 -- ══════════════════════════════════════════════════════════════
--- TELEPORT MOVEMENT (Real guard bypass)
+-- INITIALIZE: Cache all eggs at startup (ONLY ONCE)
+-- ══════════════════════════════════════════════════════════════
+local function InitializeEggCache()
+    EggCache = {}
+    local container = workspace:FindFirstChild("AreaEggSlotsClient")
+    if not container then
+        log("AutoFarm: AreaEggSlotsClient not found", LOG_ERR)
+        return false
+    end
+    
+    for _, child in ipairs(container:GetChildren()) do
+        if child:IsA("Model") then
+            local rarity = detectRarity(child.Name)
+            if SelectedFarmRarities[rarity] then
+                local pos = GetPosition(child)
+                if pos then
+                    EggCache[child.Name] = {
+                        Name = child.Name,
+                        Rarity = rarity,
+                        Pos = pos,
+                        Model = child
+                    }
+                end
+            end
+        end
+    end
+    
+    log("AutoFarm: cached " .. table.getn(EggCache) .. " eggs", LOG_OK)
+    return true
+end
+
+-- ══════════════════════════════════════════════════════════════
+-- FIND CLOSEST EGG FROM CACHE (not rescanning whole world)
+-- ══════════════════════════════════════════════════════════════
+local function FindClosestEggFromCache(root)
+    local closest, closestDist = nil, math.huge
+    
+    for uid, egg in pairs(EggCache) do
+        -- Skip already processed eggs
+        if not ProcessedEggs[uid] then
+            -- Verify egg still exists in world
+            local model = egg.Model
+            if model and model.Parent then
+                local pos = GetPosition(model)
+                if pos then
+                    local dist = (pos - root.Position).Magnitude
+                    if dist < closestDist then
+                        closestDist = dist
+                        closest = egg
+                    end
+                end
+            else
+                -- Egg was deleted, remove from cache
+                EggCache[uid] = nil
+            end
+        end
+    end
+    
+    return closest
+end
+
+-- ══════════════════════════════════════════════════════════════
+-- HELPER: DETECT RARITY FROM EGG NAME
+-- ══════════════════════════════════════════════════════════════
+local function detectRarity(eggName)
+    if string.match(eggName, "Cosmic") then return "Cosmic"
+    elseif string.match(eggName, "Divine") then return "Divine"
+    elseif string.match(eggName, "Eternal") then return "Eternal"
+    elseif string.match(eggName, "Secret") then return "Secret"
+    else return "Common" end
+end
+
+-- ══════════════════════════════════════════════════════════════
+-- HELPER: TELEPORT TO POSITION (with guard bypass)
 -- ══════════════════════════════════════════════════════════════
 local function TPToPosition(targetPos, speed)
     local char = Player.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return false end
     
-    local bodyVel = Instance.new("BodyVelocity")
-    bodyVel.Velocity = Vector3.new(0, 0, 0)
-    bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bodyVel.Parent = root
+    -- Calculate distance and time needed
+    local dist = (targetPos - root.Position).Magnitude
+    local tpTime = dist / (speed or FLY_SPEED)
     
-    local bodyGyr = Instance.new("BodyGyro")
-    bodyGyr.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bodyGyr.P = 10000
-    bodyGyr.Parent = root
-    
+    -- Teleport in increments to bypass guards
     local startTime = tick()
-    local TIMEOUT = 15
+    local maxTime = math.max(5, tpTime * 1.5)  -- timeout safety
     
-    while tick() - startTime < TIMEOUT do
-        local c = Player.Character
-        local r = c and c:FindFirstChild("HumanoidRootPart")
-        if not r then break end
+    while tick() - startTime < maxTime do
+        char = Player.Character
+        root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return false end
         
-        local dist = (r.Position - targetPos).Magnitude
-        if dist <= ARRIVE_DIST then
-            bodyVel:Destroy()
-            bodyGyr:Destroy()
-            return true
-        end
+        local currentDist = (targetPos - root.Position).Magnitude
+        if currentDist < 3 then return true end  -- arrived
         
-        local dir = (targetPos - r.Position).Unit
-        bodyVel.Velocity = dir * speed
-        bodyGyr.CFrame = r.CFrame
+        -- Fast direct TP
+        root.CFrame = CFrame.new(targetPos + Vector3.new(0, FLY_OFFSET, 0))
         task.wait(0.05)
     end
     
-    bodyVel:Destroy()
-    bodyGyr:Destroy()
-    return false
+    return true
 end
 
 -- ══════════════════════════════════════════════════════════════
--- RAGDOLL BYPASS (when guards hit you)
+-- HELPER: BYPASS RAGDOLL (disable guard ragdoll state)
 -- ══════════════════════════════════════════════════════════════
 local function BypassRagdoll()
     local char = Player.Character
     if not char then return end
     
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-    
+    -- Disable ragdoll states
     pcall(function()
-        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-        hum.PlatformStand = false
-        
-        -- Clean ragdoll joints
-        for _, desc in ipairs(char:GetDescendants()) do
-            if desc.Name:find("RagdollConstraint") then
-                desc:Destroy()
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        end
+    end)
+    
+    -- Destroy RagdollConstraints if any
+    pcall(function()
+        for _, child in ipairs(char:GetDescendants()) do
+            if child:IsA("BallSocketConstraint") or child:IsA("WeldConstraint") then
+                if child.Name == "RagdollConstraint" or string.match(child.Name, "Ragdoll") then
+                    child:Destroy()
+                end
             end
         end
     end)
-end
-
--- ══════════════════════════════════════════════════════════════
--- FIND CLOSEST EGG
--- ══════════════════════════════════════════════════════════════
-local function findClosestEgg(root)
-    local container = workspace:FindFirstChild("AreaEggSlotsClient")
-    if not container then return nil end
-    
-    local closest, closestDist = nil, math.huge
-    
-    for _, child in ipairs(container:GetChildren()) do
-        if child:IsA("Model") then
-            local rarity = detectRarity(child.Name)
-            if SelectedFarmRarities[rarity] then
-                local pos = child.PrimaryPart and child.PrimaryPart.Position or nil
-                if not pos then
-                    for _, p in ipairs(child:GetChildren()) do
-                        if p:IsA("BasePart") then pos = p.Position; break end
-                    end
-                end
-                
-                if pos then
-                    local dist = (pos - root.Position).Magnitude
-                    if dist < closestDist then
-                        closestDist = dist
-                        closest = {Name = child.Name, Rarity = rarity, Pos = pos}
-                    end
-                end
-            end
-        end
-    end
-    
-    return closest
 end
 
 -- ══════════════════════════════════════════════════════════════
@@ -668,46 +713,158 @@ local function runAutoFarmLoop()
     AutoFarmRunning = true
     
     task.spawn(function()
+        -- ────────────────────────────────────────────────
+        -- INITIALIZE: Cache eggs at startup (ONCE ONLY)
+        -- ────────────────────────────────────────────────
+        log("AutoFarm: initializing egg cache...", LOG_INFO)
+        if not InitializeEggCache() then
+            log("AutoFarm: failed to initialize cache", LOG_ERR)
+            stopAutoFarm("cache init failed")
+            return
+        end
+        
+        log("AutoFarm: egg cache ready, scanning eggs in rarity pool", LOG_OK)
+        setAfVisual("running", "Cached! Farming...")
+        
+        -- ────────────────────────────────────────────────
+        -- MAIN LOOP: Process cached eggs sequentially
+        -- ────────────────────────────────────────────────
         while AutoFarmEnabled and AutoFarmRunning do
             local char = Player.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             
             if not root or not hum or hum.Health <= 0 then
+                log("AutoFarm: character lost", LOG_ERR)
                 stopAutoFarm("character lost")
                 return
             end
             
-            -- Find egg
-            local egg = findClosestEgg(root)
+            -- ════════════════════════════════════════════════════════════════
+            -- STEP 1: FIND CLOSEST UNPROCESSED EGG FROM CACHE
+            -- ════════════════════════════════════════════════════════════════
+            CurrentStep = "idle"
+            local egg = FindClosestEggFromCache(root)
+            
             if not egg then
-                log("AutoFarm: scanning...", LOG_INFO)
-                setAfVisual("running", "Scanning...")
+                -- No more eggs — all processed or none available
+                log("AutoFarm: ✓ ALL EGGS COLLECTED! Restarting farm cycle...", LOG_OK)
+                -- Reset ProcessedEggs to start over
+                ProcessedEggs = {}
+                EggCache = {}
+                task.wait(2)
+                if not InitializeEggCache() then break end
+                continue
+            end
+            
+            -- Track this egg's UID for ProcessedEggs tracking
+            TargetUID = egg.Name
+            
+            log("AutoFarm: found " .. egg.Rarity .. " egg at distance ~" .. math.floor((egg.Pos - root.Position).Magnitude), LOG_OK)
+            setAfVisual("running", "TP to " .. egg.Rarity .. "...")
+            
+            -- ════════════════════════════════════════════════════════════════
+            -- STEP 2: FLY TO EGG POSITION (State: flying)
+            -- ════════════════════════════════════════════════════════════════
+            CurrentStep = "flying"
+            local tpSuccess = TPToPosition(egg.Pos, FLY_SPEED)
+            
+            if not tpSuccess then
+                log("AutoFarm: TP to egg failed (timeout)", LOG_WARN)
                 task.wait(1)
                 continue
             end
             
-            log("AutoFarm: found " .. egg.Rarity .. " egg", LOG_OK)
-            setAfVisual("running", "TP to " .. egg.Rarity .. "...")
+            task.wait(0.2)
+            BypassRagdoll()  -- handle any guard ragdoll hits
             
-            -- STEP 1: INSTANT TP to egg (fast guard bypass)
-            local tpSuccess = TPToPosition(egg.Pos, FLY_SPEED)
-            if not tpSuccess then
-                log("AutoFarm: TP timeout", LOG_WARN)
-                task.wait(2)
-                continue
-            end
+            -- ════════════════════════════════════════════════════════════════
+            -- STEP 3: PICKUP EGG VIA REMOTE (State: collecting)
+            -- ════════════════════════════════════════════════════════════════
+            CurrentStep = "collecting"
             
-            task.wait(0.1)
-            BypassRagdoll()  -- handle guard hits
-            
-            -- STEP 2: Pickup egg via remote
             if CollectEvent then
-                log("AutoFarm: picking up " .. egg.Rarity, LOG_INFO)
+                log("AutoFarm: invoking collect event for " .. egg.Rarity, LOG_INFO)
                 pcall(function()
                     CollectEvent:InvokeServer(egg.Name)
                     CurrentEggUid = egg.Name
+                    log("AutoFarm: collected " .. egg.Rarity, LOG_OK)
                 end)
+                task.wait(COLLECT_INTERVAL)
+            else
+                log("AutoFarm: ⚠ CollectEvent not available, skipping pickup", LOG_WARN)
+                task.wait(0.5)
+            end
+            
+            -- ════════════════════════════════════════════════════════════════
+            -- STEP 4: RETURN TO SAFE ZONE (State: locking)
+            -- ════════════════════════════════════════════════════════════════
+            CurrentStep = "locking"
+            log("AutoFarm: returning to safe zone...", LOG_INFO)
+            setAfVisual("running", "Returning " .. egg.Rarity .. "...")
+            
+            -- Calculate distance to safe zone
+            local distToSafe = (root.Position - SAFE_ZONE).Magnitude
+            
+            if distToSafe > SAFE_LOCK_DISTANCE then
+                -- Fast TP back to safe zone entry
+                local safeEntry = SAFE_ZONE + Vector3.new(0, 5, -15)
+                TPToPosition(safeEntry, RETURN_SPEED)
+                task.wait(0.3)
+            end
+            
+            -- Lock position: slow walk to safe zone center
+            -- This prevents guards from forcing back-and-forth movement
+            local lockStartTime = tick()
+            local LOCK_TIMEOUT = 20
+            
+            while AutoFarmRunning and AutoFarmEnabled do
+                char = Player.Character
+                hum = char and char:FindFirstChildOfClass("Humanoid")
+                root = char and char:FindFirstChild("HumanoidRootPart")
+                
+                if not root or not hum or hum.Health <= 0 then
+                    log("AutoFarm: lost character while returning", LOG_ERR)
+                    break
+                end
+                
+                local distNow = (root.Position - SAFE_ZONE).Magnitude
+                
+                -- Check if we've reached safe zone
+                if distNow <= 5 then
+                    log("AutoFarm: ✓ delivered " .. egg.Rarity .. " successfully!", LOG_OK)
+                    -- MARK AS PROCESSED
+                    ProcessedEggs[TargetUID] = true
+                    CurrentStep = "done"
+                    break
+                end
+                
+                -- Safety timeout
+                if tick() - lockStartTime > LOCK_TIMEOUT then
+                    log("AutoFarm: timeout reaching safe zone, moving on", LOG_WARN)
+                    ProcessedEggs[TargetUID] = true
+                    CurrentStep = "done"
+                    break
+                end
+                
+                -- Move slowly to safe zone with human:MoveTo (lock position)
+                pcall(function()
+                    hum.WalkSpeed = 150
+                    hum:MoveTo(SAFE_ZONE)
+                end)
+                
+                task.wait(0.1)
+            end
+            
+            task.wait(0.5)
+        end
+        
+        -- ────────────────────────────────────────────────
+        -- LOOP EXIT
+        -- ────────────────────────────────────────────────
+        stopAutoFarm("done")
+    end)
+endnd)
                 task.wait(0.3)
             end
             
@@ -769,10 +926,12 @@ AutoFarmCard.InputBegan:Connect(function(input)
         else
             AutoFarmEnabled = not AutoFarmEnabled
             if AutoFarmEnabled then
+                log("AutoFarm: STARTING (will cache eggs and farm sequentially)", LOG_OK)
                 setAfVisual("on", "ON  •  ready")
                 runAutoFarmLoop()
             else
                 setAfVisual("off", "OFF")
+                log("AutoFarm: disabled", LOG_WARN)
             end
         end
     end
