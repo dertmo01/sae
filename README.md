@@ -6,3 +6,5 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/GlazeScripts/Fyy-Comm
 loadstring(game:HttpGet("https://raw.githubusercontent.com/JualNasiRendang/loader/refs/heads/main/main.lua"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/dertmo01/sae/refs/heads/main/MAIN"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/dertmo01/ANTI/refs/heads/main/MAIN"))()
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/dertmo01/sae/refs/heads/main/auto-manual"))()
