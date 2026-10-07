@@ -1,0 +1,1133 @@
+Yes. I can see several **real UI/data-consistency bugs** in these screenshots. The most important ones are not just visual—they indicate possible problems with your **date filtering, report status synchronization, map markers, category naming, and assignment workflow**.
+
+Below is a complete breakdown you can use as a **bug report / QA checklist for your project**.
+
+---
+
+# 1\. Critical Bug — Date Filter Does Not Match the Report Date
+
+### Screenshot
+
+**Pending Reports page**
+
+The filter shows:
+
+> **May 1, 2025 – May 21, 2026**
+
+But the report in the table says:
+
+> **Submitted Date: Oct 7, 2026 – 08:22 PM**
+
+And the page says:
+
+> **Showing 1–1 of 1 results**
+
+### Why this is a bug
+
+The report's date is **October 7, 2026**, but the selected date range ends on **May 21, 2026**.
+
+Therefore, the report should **not appear** if the date filter is actually being applied.
+
+### Expected behavior
+
+If the date filter is:
+
+```
+May 1, 2025 → May 21, 2026
+```
+
+then a report submitted:
+
+```
+October 7, 2026
+```
+
+should be excluded.
+
+The table should show:
+
+```
+No reports found
+```
+
+or:
+
+```
+0 results
+```
+
+### Possible causes
+
+Check your backend/frontend filtering logic.
+
+For example, you may have something similar to:
+
+```
+reports.filter(...)
+```
+
+but the date range isn't included in the filtering condition.
+
+Or the frontend is displaying the selected date range but isn't sending it to the API.
+
+### Correct logic
+
+Conceptually:
+
+```
+reportDate >= startDate &&
+reportDate <= endDate
+```
+
+For this particular case:
+
+```
+2026-10-07 >= 2025-05-01  → true
+2026-10-07 <= 2026-05-21  → false
+```
+
+Therefore:
+
+```
+Report should NOT appear.
+```
+
+### Severity
+
+🔴 **HIGH / CRITICAL**
+
+This can cause administrators to believe that filtered reports belong to a particular period when they don't.
+
+---
+
+# 2\. Critical Bug — Date Range Itself Looks Incorrect
+
+The date picker shows:
+
+> **May 1, 2025 – May 21, 2026**
+
+That's a strange range for the current report.
+
+Your screenshot contains a report from:
+
+> **October 7, 2026**
+
+If the system is supposed to default to the current year or current reporting period, your date picker may be generating an incorrect default/end date.
+
+### Possible problem
+
+You may have a hardcoded date such as:
+
+```
+new Date(2026, 4, 21)
+```
+
+or an incorrectly calculated date range.
+
+### Check
+
+Look for:
+
+```
+dateRange
+startDate
+endDate
+fromDate
+toDate
+```
+
+in your frontend.
+
+Also check the API request in browser DevTools → Network.
+
+You should see something conceptually like:
+
+```
+GET /reports?startDate=2026-05-01&endDate=2026-05-21
+```
+
+If the API request doesn't contain the date range, your frontend filtering may be broken.
+
+---
+
+# 3\. Critical Bug — GIS Map and Report Status Don't Appear Synchronized
+
+You have three different views showing the same report/system.
+
+### Community Map
+
+You have:
+
+🟢 Green recycling marker
+
+and
+
+🟠 Orange warning marker
+
+The selected report says:
+
+> **Garbage Collection** **Pending Validation**
+
+### GIS Map
+
+The map shows a:
+
+🔵 **blue marker**
+
+The legend says:
+
+```
+Pending Validation → Orange
+Assigned → Blue
+In Progress → Orange
+Resolved → Green
+```
+
+This creates a serious inconsistency.
+
+If the garbage collection report is:
+
+> **Pending Validation**
+
+its marker should presumably be:
+
+🟠 **Pending Validation**
+
+not:
+
+🔵 **Assigned**
+
+### Expected
+
+The same report should have the same status everywhere.
+
+For example:
+
+```
+Report:
+CW-2026-00004
+
+Status:
+Pending Validation
+
+Community Map:
+🟠
+
+GIS Map:
+🟠
+
+Pending Reports:
+Pending Validation
+
+Report Details:
+Pending Validation
+```
+
+### Actual
+
+You appear to have:
+
+```
+Community Map:
+🟢 / 🟠
+
+Report:
+Pending Validation
+
+GIS Map:
+🔵 Assigned
+```
+
+### Possible cause
+
+Your map may be using the wrong database field.
+
+For example:
+
+```
+markerColor = report.assignmentStatus
+```
+
+instead of:
+
+```
+markerColor = report.status
+```
+
+Or you may have separate fields:
+
+```
+status
+validation_status
+assignment_status
+```
+
+that aren't being synchronized correctly.
+
+### Severity
+
+🔴 **HIGH**
+
+This is especially important because GIS is supposed to communicate the operational state of a report.
+
+---
+
+# 4\. Bug — Status Colors Are Ambiguous
+
+Your GIS legend contains:
+
+```
+🟠 Pending Validation
+🔵 Assigned
+🟠 In Progress
+🟢 Resolved
+```
+
+Notice:
+
+> **Pending Validation = Orange** **In Progress = Orange**
+
+Two different statuses have the **same color**.
+
+That makes the map difficult to interpret.
+
+### Recommended
+
+Give every status a unique color.
+
+For example:
+
+| Status | Color |
+| --- | --- |
+| Pending Validation | 🟠 Orange |
+| Assigned | 🔵 Blue |
+| In Progress | 🟣 Purple |
+| Resolved | 🟢 Green |
+| Rejected | 🔴 Red |
+
+This isn't necessarily a functional bug, but it's a **UX/data visualization bug**.
+
+### Severity
+
+🟡 **MEDIUM**
+
+---
+
+# 5\. Bug — Category Naming Is Inconsistent
+
+You have:
+
+### Community Map
+
+```
+Environment
+```
+
+### GIS Map
+
+```
+Environmental
+```
+
+### Pending Report
+
+```
+Environmental
+```
+
+These appear to represent the same category.
+
+You should choose one canonical name.
+
+For example:
+
+```
+Environmental
+```
+
+Then use it everywhere:
+
+```
+Community Map
+Environmental
+
+GIS Map
+Environmental
+
+Pending Reports
+Environmental
+
+Report Details
+Environmental
+```
+
+### Why this matters
+
+If these are actually values coming from your database, you could have:
+
+```
+environment
+environmental
+Environment
+Environmental
+```
+
+as different values.
+
+That can break:
+
+- filtering
+- analytics
+- reports
+- category counts
+- GIS filtering
+- database queries
+
+### Recommended database value
+
+Use a stable internal value:
+
+```
+ENVIRONMENTAL
+```
+
+and display:
+
+```
+Environmental
+```
+
+---
+
+# 6\. Bug — Report Issue Description Looks Like Test/Corrupted Data
+
+The report shows:
+
+> **Garbage Collection**
+
+and underneath:
+
+> **eadas**
+
+This looks suspicious.
+
+If `eadas` is supposed to be the report description, it's either:
+
+- test data,
+- accidentally truncated text,
+- incorrectly mapped database field,
+- or a bad user submission.
+
+### Check your fields
+
+You may have:
+
+```
+title = Garbage Collection
+description = eadas
+```
+
+If that's intentional test data, that's fine.
+
+But if the actual report description should be longer, check the database/API response.
+
+For example:
+
+```
+{
+  "title": "Garbage Collection",
+  "description": "eadas"
+}
+```
+
+If the backend contains the correct description but the UI displays `eadas`, then you have a frontend mapping problem.
+
+### Severity
+
+🟡 **MEDIUM**, unless this is real production data.
+
+---
+
+# 7\. Bug — "Pending Validation" vs Assignment Workflow Needs Clear State Rules
+
+Your fourth screenshot shows:
+
+> **Select Office**
+
+and the system recommends:
+
+> **City Environment and Natural Resources Office**
+
+This is reasonable for an environmental/garbage report.
+
+However, you need to make sure that **selecting an office actually changes the report state correctly**.
+
+The workflow appears to be something like:
+
+```
+Submitted
+    ↓
+Pending Validation
+    ↓
+Validated
+    ↓
+Assigned
+    ↓
+In Progress
+    ↓
+Resolved
+```
+
+But your GIS legend has:
+
+```
+Pending Validation
+Assigned
+In Progress
+Resolved
+```
+
+There is no obvious:
+
+```
+Validated
+Rejected
+Cancelled
+```
+
+### You need to define the state machine.
+
+For example:
+
+```
+PENDING_VALIDATION
+        │
+        ├── REJECTED
+        │
+        ↓
+     VALIDATED
+        │
+        ↓
+      ASSIGNED
+        │
+        ↓
+   IN_PROGRESS
+        │
+        ↓
+     RESOLVED
+```
+
+This prevents contradictory states.
+
+---
+
+# 8\. Potential Bug — Office Recommendation Doesn't Explain Why It Was Recommended
+
+The assignment page says:
+
+> **We recommend the office below for this report.**
+
+Then:
+
+> **City Environment and Natural Resources Office** **Recommended**
+
+But there is no explanation.
+
+For a garbage/environmental report, this is understandable, but from an administrative perspective, the system should ideally know why.
+
+For example:
+
+```
+Recommended because:
+Category = Environmental
+Issue = Garbage Collection
+```
+
+or:
+
+```
+Recommended based on:
+Environmental category
+Barangay Zone 2
+Garbage-related issue
+```
+
+This becomes especially important when the wrong office is recommended.
+
+### Better UI
+
+```
+Recommended Office
+
+City Environment and Natural Resources Office
+
+Reason:
+Environmental → Garbage Collection
+
+[Select]
+```
+
+---
+
+# 9\. Potential Bug — Community Map Marker Selection
+
+In the first screenshot, the user appears to have selected the green recycling marker.
+
+The bottom panel displays:
+
+> Garbage Collection Pending Validation Ref. No. CW-2026-00004
+
+That part is good.
+
+However, the second GIS screenshot appears to show a blue marker around the same general area.
+
+You need to ensure the selected marker is tied to the **exact report ID**, not simply the geographic location.
+
+### Correct implementation
+
+Every marker should have:
+
+```
+{
+  reportId: "CW-2026-00004",
+  latitude: ...,
+  longitude: ...,
+  status: "PENDING_VALIDATION"
+}
+```
+
+When clicked:
+
+```
+onMarkerClick(reportId)
+```
+
+then retrieve:
+
+```
+CW-2026-00004
+```
+
+and show its details.
+
+Don't identify a report solely by:
+
+```
+latitude + longitude
+```
+
+because multiple reports could exist in the same area.
+
+---
+
+# 10\. Potential Bug — Mobile and Desktop Maps May Be Using Different Data
+
+This is one of the things I would investigate first.
+
+Your mobile screen says:
+
+```
+Garbage Collection
+Pending Validation
+```
+
+while the desktop GIS map seems to represent a different status.
+
+That can happen if:
+
+### Mobile
+
+Uses:
+
+```
+/report/{id}
+```
+
+while GIS uses:
+
+```
+/reports
+```
+
+and those endpoints return different status information.
+
+For example:
+
+```
+// Mobile
+{
+  "status": "PENDING_VALIDATION"
+}
+```
+
+but:
+
+```
+// GIS
+{
+  "status": "ASSIGNED"
+}
+```
+
+This means you have a **backend data consistency problem**, not just a UI problem.
+
+---
+
+# 11\. Potential Bug — Map Status Legend Doesn't Match All Marker Types
+
+The Community Map has markers that appear to use:
+
+🟢 recycling icon 🟠 warning icon
+
+But the GIS map uses:
+
+🟠 🔵 🟠 🟢
+
+If those icons represent categories on one screen and statuses on another, you should explicitly document that.
+
+For example:
+
+### Community Map
+
+Markers represent **issue categories**:
+
+```
+♻ Environmental
+⚠ Infrastructure
+```
+
+### GIS Map
+
+Markers represent **workflow status**:
+
+```
+🟠 Pending Validation
+🔵 Assigned
+🟣 In Progress
+🟢 Resolved
+```
+
+If that's the intended design, that's fine—but the UI needs to make the distinction obvious.
+
+Otherwise users may think:
+
+> Green = Resolved
+
+when on the Community Map green actually means:
+
+> Environmental.
+
+That is a major UX problem.
+
+---
+
+# 12\. Bug — "Environmental" Filter vs "Environment" Filter
+
+Your Community Map has:
+
+```
+Environment
+```
+
+while GIS has:
+
+```
+Environmental
+```
+
+If the user selects:
+
+```
+Environment
+```
+
+on one screen and:
+
+```
+Environmental
+```
+
+on another, the filtering system must translate them correctly.
+
+Better:
+
+```
+Environmental
+```
+
+everywhere.
+
+Database:
+
+```
+ENVIRONMENTAL
+```
+
+---
+
+# 13\. Potential Bug — Date/Time and Timezone
+
+Your report displays:
+
+> Oct 7, 2026 08:22 PM
+
+Since this is a local government application, make sure your backend isn't storing local time incorrectly.
+
+Ideally:
+
+### Database
+
+Store timestamps consistently, preferably UTC:
+
+```
+2026-10-07T12:22:00Z
+```
+
+### Frontend
+
+Convert to the user's local timezone:
+
+```
+Oct 7, 2026
+08:22 PM
+```
+
+Otherwise you can eventually get problems where:
+
+```
+Database date = Oct 7
+Frontend date = Oct 8
+```
+
+and this can also cause **date filter bugs**.
+
+---
+
+# 14\. UI Bug — Map Takes a Lot of Space Without Showing Enough Information
+
+The GIS map is visually clean, but the map occupies almost the entire content area.
+
+The user has to interpret:
+
+```
+marker → legend → report
+```
+
+A better admin GIS layout would be:
+
+```
+┌─────────────────────────────────────────────┐
+│ GIS Map                                     │
+│ Filters                                     │
+├───────────────────────┬─────────────────────┤
+│                       │ Report Details      │
+│                       │                     │
+│        MAP            │ CW-2026-00004      │
+│                       │ Garbage Collection │
+│                       │ Pending Validation │
+│                       │ Zone 2             │
+│                       │                     │
+└───────────────────────┴─────────────────────┘
+```
+
+Then clicking a marker immediately shows the report details.
+
+---
+
+# 15\. Potential Bug — No Clear Empty State
+
+For the Pending Reports page, you should have a proper empty state.
+
+For example:
+
+```
+No Pending Reports
+
+There are no reports waiting for validation
+within the selected filters.
+```
+
+And ideally:
+
+```
+Clear Filters
+```
+
+This becomes especially important when you fix the date-filter bug.
+
+---
+
+# 16\. Potential Bug — Filter State Doesn't Appear Clearly Reflected in Results
+
+You have:
+
+```
+Search
+All Categories
+All Barangays
+May 1, 2025 – May 21, 2026
+```
+
+but the result doesn't appear to respect all those filters.
+
+This suggests the filtering system should be tested independently.
+
+Test:
+
+### Category
+
+```
+Environmental
+```
+
+Should return only environmental reports.
+
+### Barangay
+
+```
+Zone 2
+```
+
+Should return only Zone 2 reports.
+
+### Date
+
+```
+May 1, 2025 → May 21, 2026
+```
+
+Should exclude:
+
+```
+Oct 7, 2026
+```
+
+### Search
+
+Search:
+
+```
+Garbage
+```
+
+Should return:
+
+```
+Garbage Collection
+```
+
+Search:
+
+```
+CW-2026-00004
+```
+
+should return that exact report.
+
+---
+
+# 17\. Important Data Consistency Problem
+
+The biggest issue I see across all screenshots is that your application seems to have **multiple representations of the same report**.
+
+The report is:
+
+```
+ID:
+CW-2026-00004
+
+Issue:
+Garbage Collection
+
+Category:
+Environmental
+
+Barangay:
+Zone 2 (Pob.)
+
+Status:
+Pending Validation
+```
+
+That exact report should remain identical across:
+
+```
+Community Map
+       ↓
+GIS Map
+       ↓
+Pending Reports
+       ↓
+Assign Office
+       ↓
+Report Details
+       ↓
+Analytics
+```
+
+You should have **one source of truth** in the backend.
+
+---
+
+# Recommended Database Model
+
+I would structure the report roughly like:
+
+```
+{
+  id: "CW-2026-00004",
+
+  title: "Garbage Collection",
+
+  description: "eadas",
+
+  category: "ENVIRONMENTAL",
+
+  status: "PENDING_VALIDATION",
+
+  barangay: "ZONE_2",
+
+  latitude: 6.75,
+  longitude: 125.35,
+
+  submittedBy: "...",
+
+  submittedAt: "2026-10-07T12:22:00Z",
+
+  assignedOffice: null,
+
+  assignedAt: null,
+
+  resolvedAt: null
+}
+```
+
+Then every screen reads the same object.
+
+---
+
+# Recommended Status Constants
+
+Don't store arbitrary strings everywhere.
+
+Use constants/enums:
+
+```
+const REPORT_STATUS = {
+  PENDING_VALIDATION: "PENDING_VALIDATION",
+  VALIDATED: "VALIDATED",
+  ASSIGNED: "ASSIGNED",
+  IN_PROGRESS: "IN_PROGRESS",
+  RESOLVED: "RESOLVED",
+  REJECTED: "REJECTED"
+};
+```
+
+And categories:
+
+```
+const REPORT_CATEGORY = {
+  INFRASTRUCTURE: "INFRASTRUCTURE",
+  ENVIRONMENTAL: "ENVIRONMENTAL",
+  HEALTH: "HEALTH",
+  SAFETY: "SAFETY"
+};
+```
+
+Then display human-friendly names:
+
+```
+PENDING_VALIDATION → "Pending Validation"
+ENVIRONMENTAL → "Environmental"
+```
+
+This will eliminate many inconsistencies.
+
+---
+
+# My Priority Ranking
+
+If these were submitted to me as QA bugs, I'd prioritize them like this:
+
+| Priority | Bug | Severity |
+| --- | --- | --- |
+| 🔴 P0 | Date filter shows Oct 2026 report outside May 2026 range | Critical |
+| 🔴 P0 | GIS status/marker doesn't match Pending Validation | Critical |
+| 🔴 P1 | Status synchronization between screens | High |
+| 🔴 P1 | Community Map and GIS Map use potentially different marker meanings | High |
+| 🟠 P1 | Category naming inconsistent: Environment vs Environmental | High |
+| 🟠 P1 | Status colors duplicate Pending/In Progress | Medium |
+| 🟠 P2 | Report description appears as `eadas` | Medium |
+| 🟠 P2 | Office recommendation lacks explanation | Medium |
+| 🟡 P2 | Date/time timezone handling needs verification | Medium |
+| 🟡 P3 | GIS layout/report details could be improved | Low |
+| 🟡 P3 | Empty-state UX | Low |
+
+---
+
+# Most Important Fix
+
+I would **not start by changing the UI**.
+
+First investigate your **backend/API data flow**.
+
+Trace this report:
+
+```
+CW-2026-00004
+```
+
+through the application.
+
+Check the API response.
+
+You want to determine whether the backend returns something like:
+
+```
+{
+  "id": "CW-2026-00004",
+  "status": "PENDING_VALIDATION",
+  "category": "ENVIRONMENTAL",
+  "submittedAt": "2026-10-07T20:22:00",
+  "barangay": "ZONE_2"
+}
+```
+
+Then check what the **Pending Reports**, **Community Map**, **GIS Map**, and **Assign Office** components do with that exact data.
+
+If the API is correct but the screens disagree → **frontend bug**.
+
+If the API itself contains conflicting values → **backend/database bug**.
+
+If the date filter is sent incorrectly → **frontend/API filter bug**.
+
+---
+
+## The first bug I would reproduce
+
+Do this exact test:
+
+**Date filter:**
+
+```
+May 1, 2025
+to
+May 21, 2026
+```
+
+**Expected:**
+
+```
+CW-2026-00004 should NOT appear
+```
+
+**Actual:**
+
+```
+CW-2026-00004 appears
+Submitted: Oct 7, 2026
+```
+
+If you can reproduce that, you've got a very clear **P0/P1 filtering bug**.
+
+If you want, **send me your project source code (ZIP) or the relevant frontend/backend files**, and I can go through these screenshots against the actual code and tell you **exactly which files/functions are causing each bug and what code you should change**.
